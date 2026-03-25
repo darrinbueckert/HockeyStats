@@ -88,6 +88,7 @@ struct AddPlusMinusEventView: View {
 
     private func saveEvents() {
         let eventTime = Date()
+        let currentPeriod = game.currentPeriodNumber
 
         let selectedPlayers = sortedPlayers.filter { player in
             selectedPlayerIDs.contains(player.persistentModelID)
@@ -98,7 +99,8 @@ struct AddPlusMinusEventView: View {
                 timestamp: eventTime,
                 type: selectedType,
                 game: game,
-                primaryPlayer: player
+                primaryPlayer: player,
+                periodNumber: currentPeriod
             )
 
             context.insert(event)

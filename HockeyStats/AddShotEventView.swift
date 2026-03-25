@@ -19,7 +19,8 @@ struct AddShotEventView: View {
                             let event = GameEvent(
                                 type: .shot,
                                 game: game,
-                                primaryPlayer: player
+                                primaryPlayer: player,
+                                periodNumber: game.currentPeriodNumber
                             )
 
                             context.insert(event)

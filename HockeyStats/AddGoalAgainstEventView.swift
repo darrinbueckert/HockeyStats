@@ -96,13 +96,15 @@ struct AddGoalAgainstEventView: View {
     private func saveGoalAgainst() {
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
         let eventTime = Date()
+        let currentPeriod = game.currentPeriodNumber
 
         let goalAgainstEvent = GameEvent(
             timestamp: eventTime,
             type: .goalAgainst,
             strength: strength,
             game: game,
-            noteText: trimmedNote.isEmpty ? nil : trimmedNote
+            noteText: trimmedNote.isEmpty ? nil : trimmedNote,
+            periodNumber: currentPeriod
         )
 
         context.insert(goalAgainstEvent)
@@ -118,7 +120,8 @@ struct AddGoalAgainstEventView: View {
                     timestamp: eventTime,
                     type: .minus,
                     game: game,
-                    primaryPlayer: player
+                    primaryPlayer: player,
+                    periodNumber: currentPeriod
                 )
                 context.insert(minusEvent)
                 game.events.append(minusEvent)

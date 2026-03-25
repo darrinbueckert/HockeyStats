@@ -9,6 +9,10 @@ enum GameEventType: String, Codable, CaseIterable {
     case minus
     case goalAgainst
     case note
+    case gameStart
+    case gameEnd
+    case shootoutAttemptFor
+    case shootoutAttemptAgainst
 }
 
 enum GoalStrength: String, Codable, CaseIterable {
@@ -32,6 +36,9 @@ class GameEvent {
     var pimMinutes: Int?
     var noteText: String?
 
+    var periodNumber: Int?
+    var didScore: Bool?
+
     init(
         timestamp: Date = Date(),
         type: GameEventType,
@@ -41,7 +48,9 @@ class GameEvent {
         secondaryPlayer: Player? = nil,
         tertiaryPlayer: Player? = nil,
         pimMinutes: Int? = nil,
-        noteText: String? = nil
+        noteText: String? = nil,
+        periodNumber: Int? = nil,
+        didScore: Bool? = nil
     ) {
         self.timestamp = timestamp
         self.typeRaw = type.rawValue
@@ -52,6 +61,8 @@ class GameEvent {
         self.tertiaryPlayer = tertiaryPlayer
         self.pimMinutes = pimMinutes
         self.noteText = noteText
+        self.periodNumber = periodNumber
+        self.didScore = didScore
     }
 
     var type: GameEventType {

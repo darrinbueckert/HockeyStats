@@ -45,7 +45,8 @@ struct AddNoteEventView: View {
                             type: .note,
                             game: game,
                             primaryPlayer: selectedPlayer,
-                            noteText: trimmedNote
+                            noteText: trimmedNote,
+                            periodNumber: game.currentPeriodNumber
                         )
 
                         context.insert(event)

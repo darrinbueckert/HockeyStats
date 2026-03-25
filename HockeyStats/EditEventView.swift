@@ -12,25 +12,21 @@ struct EditEventView: View {
             switch event.type {
             case .goalFor:
                 EditGoalEventView(game: game, event: event)
-
             case .shot:
                 EditShotEventView(game: game, event: event)
-
             case .penalty:
                 EditPenaltyEventView(game: game, event: event)
-
             case .plus, .minus:
                 EditPlusMinusEventView(game: game, event: event)
-
             case .goalAgainst:
                 EditGoalAgainstEventView(game: game, event: event)
-
             case .note:
                 EditNoteEventView(game: game, event: event)
+            case .gameStart, .gameEnd, .shootoutAttemptFor, .shootoutAttemptAgainst:
+                EditSimpleEventView(event: event)
             }
         }
         .environment(\.modelContext, context)
-        
     }
 }
 
@@ -54,9 +50,7 @@ struct EditGoalEventView: View {
         self.event = event
 
         let players = (game.team?.players ?? []).sorted {
-            if $0.number == $1.number {
-                return $0.name < $1.name
-            }
+            if $0.number == $1.number { return $0.name < $1.name }
             return $0.number < $1.number
         }
 
@@ -115,17 +109,14 @@ struct EditGoalEventView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         guard let scorer = player(at: selectedScorerIndex) else { return }
-
                         event.primaryPlayer = scorer
                         event.secondaryPlayer = player(at: selectedAssist1Index)
                         event.tertiaryPlayer = player(at: selectedAssist2Index)
                         event.strength = strength
                         event.timestamp = timestamp
-
                         dismiss()
                     }
                     .disabled(selectedScorerIndex == -1)
@@ -136,9 +127,7 @@ struct EditGoalEventView: View {
 
     private var sortedPlayers: [Player] {
         (game.team?.players ?? []).sorted {
-            if $0.number == $1.number {
-                return $0.name < $1.name
-            }
+            if $0.number == $1.number { return $0.name < $1.name }
             return $0.number < $1.number
         }
     }
@@ -171,9 +160,7 @@ struct EditShotEventView: View {
         self.event = event
 
         let players = (game.team?.players ?? []).sorted {
-            if $0.number == $1.number {
-                return $0.name < $1.name
-            }
+            if $0.number == $1.number { return $0.name < $1.name }
             return $0.number < $1.number
         }
 
@@ -209,7 +196,6 @@ struct EditShotEventView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         guard let player = player(at: selectedPlayerIndex) else { return }
@@ -225,9 +211,7 @@ struct EditShotEventView: View {
 
     private var sortedPlayers: [Player] {
         (game.team?.players ?? []).sorted {
-            if $0.number == $1.number {
-                return $0.name < $1.name
-            }
+            if $0.number == $1.number { return $0.name < $1.name }
             return $0.number < $1.number
         }
     }
@@ -262,9 +246,7 @@ struct EditPenaltyEventView: View {
         self.event = event
 
         let players = (game.team?.players ?? []).sorted {
-            if $0.number == $1.number {
-                return $0.name < $1.name
-            }
+            if $0.number == $1.number { return $0.name < $1.name }
             return $0.number < $1.number
         }
 
@@ -305,18 +287,14 @@ struct EditPenaltyEventView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         guard let player = player(at: selectedPlayerIndex) else { return }
-
                         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
-
                         event.primaryPlayer = player
                         event.pimMinutes = Int(minutes) ?? 0
                         event.noteText = trimmedNote.isEmpty ? nil : trimmedNote
                         event.timestamp = timestamp
-
                         dismiss()
                     }
                     .disabled(selectedPlayerIndex == -1)
@@ -327,9 +305,7 @@ struct EditPenaltyEventView: View {
 
     private var sortedPlayers: [Player] {
         (game.team?.players ?? []).sorted {
-            if $0.number == $1.number {
-                return $0.name < $1.name
-            }
+            if $0.number == $1.number { return $0.name < $1.name }
             return $0.number < $1.number
         }
     }
@@ -363,9 +339,7 @@ struct EditPlusMinusEventView: View {
         self.event = event
 
         let players = (game.team?.players ?? []).sorted {
-            if $0.number == $1.number {
-                return $0.name < $1.name
-            }
+            if $0.number == $1.number { return $0.name < $1.name }
             return $0.number < $1.number
         }
 
@@ -407,15 +381,12 @@ struct EditPlusMinusEventView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         guard let player = player(at: selectedPlayerIndex) else { return }
-
                         event.primaryPlayer = player
                         event.type = selectedType
                         event.timestamp = timestamp
-
                         dismiss()
                     }
                     .disabled(selectedPlayerIndex == -1)
@@ -426,9 +397,7 @@ struct EditPlusMinusEventView: View {
 
     private var sortedPlayers: [Player] {
         (game.team?.players ?? []).sorted {
-            if $0.number == $1.number {
-                return $0.name < $1.name
-            }
+            if $0.number == $1.number { return $0.name < $1.name }
             return $0.number < $1.number
         }
     }
@@ -460,7 +429,6 @@ struct EditGoalAgainstEventView: View {
     init(game: Game, event: GameEvent) {
         self.game = game
         self.event = event
-
         _strength = State(initialValue: event.strength ?? .even)
         _note = State(initialValue: event.noteText ?? "")
         _timestamp = State(initialValue: event.timestamp)
@@ -495,7 +463,6 @@ struct EditGoalAgainstEventView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -528,9 +495,7 @@ struct EditNoteEventView: View {
         self.event = event
 
         let players = (game.team?.players ?? []).sorted {
-            if $0.number == $1.number {
-                return $0.name < $1.name
-            }
+            if $0.number == $1.number { return $0.name < $1.name }
             return $0.number < $1.number
         }
 
@@ -570,16 +535,13 @@ struct EditNoteEventView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !trimmedNote.isEmpty else { return }
-
                         event.primaryPlayer = player(at: selectedPlayerIndex)
                         event.noteText = trimmedNote
                         event.timestamp = timestamp
-
                         dismiss()
                     }
                     .disabled(note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -590,9 +552,7 @@ struct EditNoteEventView: View {
 
     private var sortedPlayers: [Player] {
         (game.team?.players ?? []).sorted {
-            if $0.number == $1.number {
-                return $0.name < $1.name
-            }
+            if $0.number == $1.number { return $0.name < $1.name }
             return $0.number < $1.number
         }
     }
@@ -605,5 +565,84 @@ struct EditNoteEventView: View {
     private static func index(for player: Player?, in players: [Player]) -> Int {
         guard let player else { return -1 }
         return players.firstIndex { $0.persistentModelID == player.persistentModelID } ?? -1
+    }
+}
+
+// MARK: - Simple Events
+
+struct EditSimpleEventView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+
+    let event: GameEvent
+
+    @State private var timestamp: Date = Date()
+    @State private var didScore: Bool = false
+
+    init(event: GameEvent) {
+        self.event = event
+        _timestamp = State(initialValue: event.timestamp)
+        _didScore = State(initialValue: event.didScore ?? false)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Time") {
+                    DatePicker("Timestamp", selection: $timestamp)
+                }
+
+                if needsOutcome {
+                    Section("Outcome") {
+                        Picker("Result", selection: $didScore) {
+                            Text("Scored").tag(true)
+                            Text("Missed").tag(false)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
+
+                Section {
+                    Button("Delete Event", role: .destructive) {
+                        context.delete(event)
+                        dismiss()
+                    }
+                }
+            }
+            .navigationTitle(titleText)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        event.timestamp = timestamp
+                        if needsOutcome {
+                            event.didScore = didScore
+                        }
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private var needsOutcome: Bool {
+        event.type == .shootoutAttemptFor || event.type == .shootoutAttemptAgainst
+    }
+
+    private var titleText: String {
+        switch event.type {
+        case .gameStart:
+            return "Edit Game Start"
+        case .gameEnd:
+            return "Edit Game End"
+        case .shootoutAttemptFor:
+            return "Edit Shootout Attempt"
+        case .shootoutAttemptAgainst:
+            return "Edit Opponent Shootout"
+        default:
+            return "Edit Event"
+        }
     }
 }

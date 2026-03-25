@@ -12,6 +12,8 @@ struct GameDetailView: View {
     @State private var showingGoalAgainst = false
     @State private var showingPlusMinus = false
     @State private var showingNote = false
+    @State private var showingShootoutFor = false
+    @State private var showingShootoutAgainst = false
 
     var body: some View {
         List {
@@ -21,6 +23,15 @@ struct GameDetailView: View {
                         .font(.headline)
                     Text("vs \(game.opponent)")
                         .font(.title3)
+
+                    HStack {
+                        Text("Status: \(statusLabel)")
+                            .bold()
+                        Spacer()
+                        if let period = currentPeriodLabel {
+                            Text(period)
+                        }
+                    }
 
                     HStack {
                         Text("Goals For: \(goalsFor)")
@@ -49,35 +60,74 @@ struct GameDetailView: View {
                     HStack {
                         Text("SH Goals Against: \(shortHandedGoalsAgainst)")
                         Spacer()
+                        Text("SO: \(shootoutForGoals)-\(shootoutAgainstGoals)")
                     }
                 }
                 .padding(.vertical, 4)
+            }
+
+            Section("Game Control") {
+                Button("Start Game") {
+                    startGame()
+                }
+                .disabled(game.isGameStarted && !game.isGameEnded)
+
+                Button("Next Period") {
+                    nextPeriod()
+                }
+                .disabled(!game.isGameStarted || game.isGameEnded || game.isShootout)
+
+                Button("Start Shootout") {
+                    startShootout()
+                }
+                .disabled(!game.isGameStarted || game.isGameEnded || game.isShootout)
+
+                Button("End Game") {
+                    endGame()
+                }
+                .disabled(!game.isGameStarted || game.isGameEnded)
             }
 
             Section("Quick Actions") {
                 Button("Add Goal") {
                     showingGoalFor = true
                 }
+                .disabled(!canRecordRegularEvents)
 
                 Button("Add Shot") {
                     showingShot = true
                 }
+                .disabled(!canRecordRegularEvents)
 
                 Button("Add Penalty") {
                     showingPenalty = true
                 }
+                .disabled(!canRecordRegularEvents)
 
                 Button("Add Opponent Goal") {
                     showingGoalAgainst = true
                 }
+                .disabled(!canRecordRegularEvents)
 
                 Button("Add Plus / Minus") {
                     showingPlusMinus = true
                 }
+                .disabled(!canRecordRegularEvents)
 
                 Button("Add Note") {
                     showingNote = true
                 }
+                .disabled(!game.isGameStarted || game.isGameEnded)
+
+                Button("Shootout Attempt") {
+                    showingShootoutFor = true
+                }
+                .disabled(!game.isShootout || game.isGameEnded)
+
+                Button("Opponent Shootout Attempt") {
+                    showingShootoutAgainst = true
+                }
+                .disabled(!game.isShootout || game.isGameEnded)
 
                 Button(role: .destructive) {
                     undoLastEvent()
@@ -126,7 +176,7 @@ struct GameDetailView: View {
                 }
             }
         }
-                .sheet(isPresented: $showingGoalFor) {
+        .sheet(isPresented: $showingGoalFor) {
             AddGoalEventView(game: game)
         }
         .sheet(isPresented: $showingShot) {
@@ -143,6 +193,37 @@ struct GameDetailView: View {
         }
         .sheet(isPresented: $showingNote) {
             AddNoteEventView(game: game)
+        }
+        .sheet(isPresented: $showingShootoutFor) {
+            AddShootoutEventView(game: game, isForTeam: true)
+        }
+        .sheet(isPresented: $showingShootoutAgainst) {
+            AddShootoutEventView(game: game, isForTeam: false)
+        }
+    }
+
+    private var canRecordRegularEvents: Bool {
+        game.isGameStarted && !game.isGameEnded && !game.isShootout
+    }
+
+    private var statusLabel: String {
+        if game.isGameEnded { return "Final" }
+        if game.isShootout { return "Shootout" }
+        if game.isGameStarted { return "Live" }
+        return "Not Started"
+    }
+
+    private var currentPeriodLabel: String? {
+        guard game.isGameStarted, let period = game.currentPeriodNumber else { return nil }
+        return displayLabel(for: period)
+    }
+
+    private func displayLabel(for period: Int) -> String {
+        switch period {
+        case 1: return "P1"
+        case 2: return "P2"
+        case 3: return "P3"
+        default: return "OT\(period - 3)"
         }
     }
 
@@ -189,6 +270,14 @@ struct GameDetailView: View {
         game.events.filter { $0.type == .minus }.count
     }
 
+    private var shootoutForGoals: Int {
+        game.events.filter { $0.type == .shootoutAttemptFor && $0.didScore == true }.count
+    }
+
+    private var shootoutAgainstGoals: Int {
+        game.events.filter { $0.type == .shootoutAttemptAgainst && $0.didScore == true }.count
+    }
+
     private func eventTitle(_ event: GameEvent) -> String {
         switch event.type {
         case .goalFor:
@@ -205,71 +294,110 @@ struct GameDetailView: View {
             return "Opponent Goal"
         case .note:
             return "Note"
+        case .gameStart:
+            return "Game Start"
+        case .gameEnd:
+            return "Game End"
+        case .shootoutAttemptFor:
+            return "Shootout Attempt"
+        case .shootoutAttemptAgainst:
+            return "Opponent Shootout Attempt"
         }
     }
 
     private func eventDetail(_ event: GameEvent) -> String? {
-        switch event.type {
-        case .goalFor:
-            var parts: [String] = []
-            if let scorer = event.primaryPlayer {
-                parts.append("Scorer: #\(scorer.number) \(scorer.name)")
-            }
-            if let assist1 = event.secondaryPlayer {
-                parts.append("A1: #\(assist1.number) \(assist1.name)")
-            }
-            if let assist2 = event.tertiaryPlayer {
-                parts.append("A2: #\(assist2.number) \(assist2.name)")
-            }
-            if let strength = event.strength {
-                parts.append("Strength: \(strength.label)")
-            }
-            return parts.joined(separator: " • ")
+        var prefix: String? = nil
+        if let period = event.periodNumber {
+            prefix = displayLabel(for: period)
+        } else if event.type == .shootoutAttemptFor || event.type == .shootoutAttemptAgainst {
+            prefix = "SO"
+        }
 
-        case .shot:
-            if let player = event.primaryPlayer {
-                return "#\(player.number) \(player.name)"
-            }
-            return nil
+        let mainDetail: String? = {
+            switch event.type {
+            case .goalFor:
+                var parts: [String] = []
+                if let scorer = event.primaryPlayer {
+                    parts.append("Scorer: #\(scorer.number) \(scorer.name)")
+                }
+                if let assist1 = event.secondaryPlayer {
+                    parts.append("A1: #\(assist1.number) \(assist1.name)")
+                }
+                if let assist2 = event.tertiaryPlayer {
+                    parts.append("A2: #\(assist2.number) \(assist2.name)")
+                }
+                if let strength = event.strength {
+                    parts.append("Strength: \(strength.label)")
+                }
+                return parts.joined(separator: " • ")
 
-        case .penalty:
-            var parts: [String] = []
-            if let player = event.primaryPlayer {
-                parts.append("#\(player.number) \(player.name)")
-            }
-            if let mins = event.pimMinutes {
-                parts.append("\(mins) min")
-            }
-            if let note = event.noteText, !note.isEmpty {
-                parts.append(note)
-            }
-            return parts.joined(separator: " • ")
+            case .shot:
+                if let player = event.primaryPlayer {
+                    return "#\(player.number) \(player.name)"
+                }
+                return nil
 
-        case .plus, .minus:
-            if let player = event.primaryPlayer {
-                return "#\(player.number) \(player.name)"
-            }
-            return nil
+            case .penalty:
+                var parts: [String] = []
+                if let player = event.primaryPlayer {
+                    parts.append("#\(player.number) \(player.name)")
+                }
+                if let mins = event.pimMinutes {
+                    parts.append("\(mins) min")
+                }
+                if let note = event.noteText, !note.isEmpty {
+                    parts.append(note)
+                }
+                return parts.joined(separator: " • ")
 
-        case .goalAgainst:
-            var parts: [String] = []
-            if let strength = event.strength {
-                parts.append("Strength: \(strength.label)")
-            }
-            if let note = event.noteText, !note.isEmpty {
-                parts.append(note)
-            }
-            return parts.joined(separator: " • ")
+            case .plus, .minus:
+                if let player = event.primaryPlayer {
+                    return "#\(player.number) \(player.name)"
+                }
+                return nil
 
-        case .note:
-            var parts: [String] = []
-            if let player = event.primaryPlayer {
-                parts.append("#\(player.number) \(player.name)")
+            case .goalAgainst:
+                var parts: [String] = []
+                if let strength = event.strength {
+                    parts.append("Strength: \(strength.label)")
+                }
+                if let note = event.noteText, !note.isEmpty {
+                    parts.append(note)
+                }
+                return parts.joined(separator: " • ")
+
+            case .note:
+                var parts: [String] = []
+                if let player = event.primaryPlayer {
+                    parts.append("#\(player.number) \(player.name)")
+                }
+                if let note = event.noteText, !note.isEmpty {
+                    parts.append(note)
+                }
+                return parts.joined(separator: " • ")
+
+            case .gameStart, .gameEnd:
+                return nil
+
+            case .shootoutAttemptFor:
+                var parts: [String] = []
+                if let player = event.primaryPlayer {
+                    parts.append("#\(player.number) \(player.name)")
+                }
+                parts.append(event.didScore == true ? "Scored" : "Missed")
+                return parts.joined(separator: " • ")
+
+            case .shootoutAttemptAgainst:
+                return event.didScore == true ? "Scored" : "Missed"
             }
-            if let note = event.noteText, !note.isEmpty {
-                parts.append(note)
-            }
-            return parts.joined(separator: " • ")
+        }()
+
+        if let prefix, let mainDetail, !mainDetail.isEmpty {
+            return "\(prefix) • \(mainDetail)"
+        } else if let prefix {
+            return prefix
+        } else {
+            return mainDetail
         }
     }
 
@@ -283,5 +411,43 @@ struct GameDetailView: View {
     private func undoLastEvent() {
         guard let newestEvent = sortedEvents.first else { return }
         context.delete(newestEvent)
+    }
+
+    private func startGame() {
+        guard !game.isGameStarted || game.isGameEnded else { return }
+
+        game.isGameStarted = true
+        game.isGameEnded = false
+        game.isShootout = false
+        game.currentPeriodNumber = 1
+
+        let event = GameEvent(type: .gameStart, game: game)
+        context.insert(event)
+        game.events.append(event)
+    }
+
+    private func nextPeriod() {
+        guard game.isGameStarted, !game.isGameEnded, !game.isShootout else { return }
+
+        if let current = game.currentPeriodNumber {
+            game.currentPeriodNumber = current + 1
+        } else {
+            game.currentPeriodNumber = 1
+        }
+    }
+
+    private func startShootout() {
+        guard game.isGameStarted, !game.isGameEnded else { return }
+        game.isShootout = true
+    }
+
+    private func endGame() {
+        guard game.isGameStarted, !game.isGameEnded else { return }
+
+        game.isGameEnded = true
+
+        let event = GameEvent(type: .gameEnd, game: game)
+        context.insert(event)
+        game.events.append(event)
     }
 }

@@ -124,6 +124,7 @@ struct AddGoalEventView: View {
             : nil
 
         let eventTime = Date()
+        let currentPeriod = game.currentPeriodNumber
 
         let goalEvent = GameEvent(
             timestamp: eventTime,
@@ -132,14 +133,16 @@ struct AddGoalEventView: View {
             game: game,
             primaryPlayer: scorer,
             secondaryPlayer: assist1,
-            tertiaryPlayer: assist2
+            tertiaryPlayer: assist2,
+            periodNumber: currentPeriod
         )
 
         let shotEvent = GameEvent(
             timestamp: eventTime,
             type: .shot,
             game: game,
-            primaryPlayer: scorer
+            primaryPlayer: scorer,
+            periodNumber: currentPeriod
         )
 
         context.insert(goalEvent)
@@ -156,7 +159,8 @@ struct AddGoalEventView: View {
                 timestamp: eventTime,
                 type: .plus,
                 game: game,
-                primaryPlayer: player
+                primaryPlayer: player,
+                periodNumber: currentPeriod
             )
             context.insert(plusEvent)
             game.events.append(plusEvent)

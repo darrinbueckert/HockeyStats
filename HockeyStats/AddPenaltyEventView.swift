@@ -1,10 +1,3 @@
-//
-//  AddPenaltyEventView.swift
-//  HockeyStats
-//
-//  Created by DarrinB on 2026-03-24.
-//
-
 import SwiftUI
 import SwiftData
 
@@ -48,7 +41,8 @@ struct AddPenaltyEventView: View {
                             game: game,
                             primaryPlayer: player,
                             pimMinutes: Int(minutes) ?? 0,
-                            noteText: trimmedNote.isEmpty ? nil : trimmedNote
+                            noteText: trimmedNote.isEmpty ? nil : trimmedNote,
+                            periodNumber: game.currentPeriodNumber
                         )
 
                         context.insert(event)
