@@ -39,6 +39,8 @@ class GameEvent {
     var periodNumber: Int?
     var didScore: Bool?
 
+    var groupID: String
+
     init(
         timestamp: Date = Date(),
         type: GameEventType,
@@ -50,7 +52,8 @@ class GameEvent {
         pimMinutes: Int? = nil,
         noteText: String? = nil,
         periodNumber: Int? = nil,
-        didScore: Bool? = nil
+        didScore: Bool? = nil,
+        groupID: String = UUID().uuidString
     ) {
         self.timestamp = timestamp
         self.typeRaw = type.rawValue
@@ -63,6 +66,7 @@ class GameEvent {
         self.noteText = noteText
         self.periodNumber = periodNumber
         self.didScore = didScore
+        self.groupID = groupID
     }
 
     var type: GameEventType {

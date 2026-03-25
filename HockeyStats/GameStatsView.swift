@@ -61,6 +61,27 @@ struct GameStatsView: View {
         }
     }
 
+    private var goalieName: String {
+        if let goalie = game.goalie {
+            return "#\(goalie.number) \(goalie.name)"
+        }
+        return "None selected"
+    }
+
+    private var goalieSaves: Int {
+        max(game.shotsAgainst - goalsAgainst, 0)
+    }
+
+    private var goalieSavePercentageText: String {
+        guard game.shotsAgainst > 0 else { return ".000" }
+        let value = Double(goalieSaves) / Double(game.shotsAgainst)
+        return String(format: "%.3f", value)
+    }
+
+    private var goalsAgainst: Int {
+        game.events.filter { $0.type == .goalAgainst }.count
+    }
+
     var body: some View {
         List {
             Section {
@@ -71,6 +92,43 @@ struct GameStatsView: View {
                         .font(.title3)
                     Text(game.date.formatted(date: .abbreviated, time: .shortened))
                         .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("Goalie") {
+                HStack {
+                    Text("Goalie")
+                    Spacer()
+                    Text(goalieName)
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    Text("Shots Against")
+                    Spacer()
+                    Text("\(game.shotsAgainst)")
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    Text("Goals Against")
+                    Spacer()
+                    Text("\(goalsAgainst)")
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    Text("Saves")
+                    Spacer()
+                    Text("\(goalieSaves)")
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    Text("SV%")
+                    Spacer()
+                    Text(goalieSavePercentageText)
                         .foregroundStyle(.secondary)
                 }
             }

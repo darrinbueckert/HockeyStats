@@ -1,6 +1,50 @@
 import SwiftUI
 import SwiftData
 
+private func deleteEventGroup(_ event: GameEvent, in context: ModelContext, from game: Game) {
+    let groupedEvents = game.events.filter { $0.groupID == event.groupID }
+
+    if groupedEvents.count > 1 {
+        for relatedEvent in groupedEvents {
+            context.delete(relatedEvent)
+        }
+        return
+    }
+
+    let sameTimestampEvents = game.events.filter { existing in
+        existing.timestamp == event.timestamp
+    }
+
+    switch event.type {
+    case .goalFor:
+        let related = sameTimestampEvents.filter {
+            $0.type == .goalFor || $0.type == .shot || $0.type == .plus
+        }
+        if related.isEmpty {
+            context.delete(event)
+        } else {
+            for relatedEvent in related {
+                context.delete(relatedEvent)
+            }
+        }
+
+    case .goalAgainst:
+        let related = sameTimestampEvents.filter {
+            $0.type == .goalAgainst || $0.type == .minus
+        }
+        if related.isEmpty {
+            context.delete(event)
+        } else {
+            for relatedEvent in related {
+                context.delete(relatedEvent)
+            }
+        }
+
+    default:
+        context.delete(event)
+    }
+}
+
 struct EditEventView: View {
     @Environment(\.modelContext) private var context
 
@@ -23,7 +67,7 @@ struct EditEventView: View {
             case .note:
                 EditNoteEventView(game: game, event: event)
             case .gameStart, .gameEnd, .shootoutAttemptFor, .shootoutAttemptAgainst:
-                EditSimpleEventView(event: event)
+                EditSimpleEventView(game: game, event: event)
             }
         }
         .environment(\.modelContext, context)
@@ -99,7 +143,7 @@ struct EditGoalEventView: View {
 
                 Section {
                     Button("Delete Event", role: .destructive) {
-                        context.delete(event)
+                        deleteEventGroup(event, in: context, from: game)
                         dismiss()
                     }
                 }
@@ -186,7 +230,7 @@ struct EditShotEventView: View {
 
                 Section {
                     Button("Delete Event", role: .destructive) {
-                        context.delete(event)
+                        deleteEventGroup(event, in: context, from: game)
                         dismiss()
                     }
                 }
@@ -277,7 +321,7 @@ struct EditPenaltyEventView: View {
 
                 Section {
                     Button("Delete Event", role: .destructive) {
-                        context.delete(event)
+                        deleteEventGroup(event, in: context, from: game)
                         dismiss()
                     }
                 }
@@ -371,7 +415,7 @@ struct EditPlusMinusEventView: View {
 
                 Section {
                     Button("Delete Event", role: .destructive) {
-                        context.delete(event)
+                        deleteEventGroup(event, in: context, from: game)
                         dismiss()
                     }
                 }
@@ -453,7 +497,7 @@ struct EditGoalAgainstEventView: View {
 
                 Section {
                     Button("Delete Event", role: .destructive) {
-                        context.delete(event)
+                        deleteEventGroup(event, in: context, from: game)
                         dismiss()
                     }
                 }
@@ -525,7 +569,7 @@ struct EditNoteEventView: View {
 
                 Section {
                     Button("Delete Event", role: .destructive) {
-                        context.delete(event)
+                        deleteEventGroup(event, in: context, from: game)
                         dismiss()
                     }
                 }
@@ -574,12 +618,14 @@ struct EditSimpleEventView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
 
+    let game: Game
     let event: GameEvent
 
     @State private var timestamp: Date = Date()
     @State private var didScore: Bool = false
 
-    init(event: GameEvent) {
+    init(game: Game, event: GameEvent) {
+        self.game = game
         self.event = event
         _timestamp = State(initialValue: event.timestamp)
         _didScore = State(initialValue: event.didScore ?? false)
@@ -604,7 +650,7 @@ struct EditSimpleEventView: View {
 
                 Section {
                     Button("Delete Event", role: .destructive) {
-                        context.delete(event)
+                        deleteEventGroup(event, in: context, from: game)
                         dismiss()
                     }
                 }

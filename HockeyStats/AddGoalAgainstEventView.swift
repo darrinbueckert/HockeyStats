@@ -81,7 +81,7 @@ struct AddGoalAgainstEventView: View {
     }
 
     private var shouldApplyMinus: Bool {
-        strength != .powerPlay
+        strength == .even
     }
 
     private func toggleOnIceSelection(for player: Player) {
@@ -97,6 +97,7 @@ struct AddGoalAgainstEventView: View {
         let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
         let eventTime = Date()
         let currentPeriod = game.currentPeriodNumber
+        let groupID = UUID().uuidString
 
         let goalAgainstEvent = GameEvent(
             timestamp: eventTime,
@@ -104,7 +105,8 @@ struct AddGoalAgainstEventView: View {
             strength: strength,
             game: game,
             noteText: trimmedNote.isEmpty ? nil : trimmedNote,
-            periodNumber: currentPeriod
+            periodNumber: currentPeriod,
+            groupID: groupID
         )
 
         context.insert(goalAgainstEvent)
@@ -121,7 +123,8 @@ struct AddGoalAgainstEventView: View {
                     type: .minus,
                     game: game,
                     primaryPlayer: player,
-                    periodNumber: currentPeriod
+                    periodNumber: currentPeriod,
+                    groupID: groupID
                 )
                 context.insert(minusEvent)
                 game.events.append(minusEvent)
