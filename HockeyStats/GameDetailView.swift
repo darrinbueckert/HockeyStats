@@ -115,7 +115,18 @@ struct GameDetailView: View {
             }
         }
         .navigationTitle("Game")
-        .sheet(isPresented: $showingGoalFor) {
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                NavigationLink(destination: GameNotesView(game: game)) {
+                    Image(systemName: "note.text")
+                }
+
+                NavigationLink(destination: GameStatsView(game: game)) {
+                    Image(systemName: "chart.bar")
+                }
+            }
+        }
+                .sheet(isPresented: $showingGoalFor) {
             AddGoalEventView(game: game)
         }
         .sheet(isPresented: $showingShot) {
