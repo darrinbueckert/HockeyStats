@@ -4,6 +4,7 @@ import SwiftData
 enum GameEventType: String, Codable, CaseIterable {
     case goalFor
     case shot
+    case opponentShot
     case penalty
     case plus
     case minus

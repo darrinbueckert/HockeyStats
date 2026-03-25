@@ -90,12 +90,14 @@ struct AddGoalEventView: View {
     }
 
     private var sortedPlayers: [Player] {
-        (game.team?.players ?? []).sorted {
-            if $0.number == $1.number {
-                return $0.name < $1.name
+        (game.team?.players ?? [])
+            .filter { $0.position != .goalie }
+            .sorted {
+                if $0.number == $1.number {
+                    return $0.name < $1.name
+                }
+                return $0.number < $1.number
             }
-            return $0.number < $1.number
-        }
     }
 
     private func toggleOnIceSelection(for player: Player) {
@@ -153,8 +155,13 @@ struct AddGoalEventView: View {
         game.events.append(goalEvent)
         game.events.append(shotEvent)
 
-        let selectedOnIcePlayers = sortedPlayers.filter { player in
+        var selectedOnIcePlayers = sortedPlayers.filter { player in
             selectedOnIcePlayerIDs.contains(player.persistentModelID)
+        }
+
+        // Ensure scorer always gets a +
+        if !selectedOnIcePlayers.contains(where: { $0.persistentModelID == scorer.persistentModelID }) {
+            selectedOnIcePlayers.append(scorer)
         }
 
         for player in selectedOnIcePlayers {

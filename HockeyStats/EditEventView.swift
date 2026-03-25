@@ -56,7 +56,7 @@ struct EditEventView: View {
             switch event.type {
             case .goalFor:
                 EditGoalEventView(game: game, event: event)
-            case .shot:
+            case .shot, .opponentShot:
                 EditShotEventView(game: game, event: event)
             case .penalty:
                 EditPenaltyEventView(game: game, event: event)

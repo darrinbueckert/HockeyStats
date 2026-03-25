@@ -14,11 +14,11 @@ struct GameDetailView: View {
     @State private var showingNote = false
     @State private var showingShootoutFor = false
     @State private var showingShootoutAgainst = false
-    
-    @FocusState private var shotsFieldFocused: Bool
 
     @State private var selectedGoalieID: PersistentIdentifier?
     @State private var shotsAgainstText = ""
+
+    @FocusState private var shotsFieldFocused: Bool
 
     var body: some View {
         List {
@@ -28,7 +28,7 @@ struct GameDetailView: View {
                         .font(.headline)
                     Text("vs \(game.opponent)")
                         .font(.title3)
-                    
+
                     HStack {
                         Text("Status: \(statusLabel)")
                             .bold()
@@ -37,104 +37,113 @@ struct GameDetailView: View {
                             Text(period)
                         }
                     }
-                    
+
                     HStack {
                         Text("Goals For: \(goalsFor)")
                         Spacer()
                         Text("Goals Against: \(goalsAgainst)")
                     }
-                    
+
                     HStack {
                         Text("Shots: \(shots)")
                         Spacer()
-                        Text("PIM: \(totalPIM)")
+                        Text("Shots Against: \(shotsAgainstTotal)")
                     }
-                    
+
                     HStack {
-                        Text("PP Goals: \(powerPlayGoals)")
+                        Text("PIM: \(totalPIM)")
                         Spacer()
-                        Text("SH Goals: \(shortHandedGoals)")
+                        Text("PP Goals: \(powerPlayGoals)")
                     }
-                    
+
+                    HStack {
+                        Text("SH Goals: \(shortHandedGoals)")
+                        Spacer()
+                        Text("SH Goals Against: \(shortHandedGoalsAgainst)")
+                    }
+
                     HStack {
                         Text("+: \(plusCount)")
                         Spacer()
                         Text("-: \(minusCount)")
                     }
-                    
+
                     HStack {
-                        Text("SH Goals Against: \(shortHandedGoalsAgainst)")
-                        Spacer()
                         Text("SO: \(shootoutForGoals)-\(shootoutAgainstGoals)")
+                        Spacer()
                     }
                 }
                 .padding(.vertical, 4)
             }
-            
-            
+
             Section("Game Control") {
                 Button("Start Game") {
                     startGame()
                 }
                 .disabled(game.isGameStarted && !game.isGameEnded)
-                
+
                 Button("Next Period") {
                     nextPeriod()
                 }
                 .disabled(!game.isGameStarted || game.isGameEnded || game.isShootout)
-                
+
                 Button("Start Shootout") {
                     startShootout()
                 }
                 .disabled(!game.isGameStarted || game.isGameEnded || game.isShootout)
-                
+
                 Button("End Game") {
                     endGame()
                 }
                 .disabled(!game.isGameStarted || game.isGameEnded)
             }
-            
+
             Section("Quick Actions") {
                 Button("Add Goal") {
                     showingGoalFor = true
                 }
                 .disabled(!canRecordRegularEvents)
-                
+
                 Button("Add Shot") {
                     showingShot = true
                 }
                 .disabled(!canRecordRegularEvents)
-                
+
+                Button("Add Opponent Shot") {
+                    addOpponentShot()
+                }
+                .disabled(!canRecordRegularEvents)
+
                 Button("Add Penalty") {
                     showingPenalty = true
                 }
                 .disabled(!canRecordRegularEvents)
-                
+
                 Button("Add Opponent Goal") {
                     showingGoalAgainst = true
                 }
                 .disabled(!canRecordRegularEvents)
-                
+
                 Button("Add Plus / Minus") {
                     showingPlusMinus = true
                 }
                 .disabled(!canRecordRegularEvents)
-                
+
                 Button("Add Note") {
                     showingNote = true
                 }
                 .disabled(!game.isGameStarted || game.isGameEnded)
-                
+
                 Button("Shootout Attempt") {
                     showingShootoutFor = true
                 }
                 .disabled(!game.isShootout || game.isGameEnded)
-                
+
                 Button("Opponent Shootout Attempt") {
                     showingShootoutAgainst = true
                 }
                 .disabled(!game.isShootout || game.isGameEnded)
-                
+
                 Button(role: .destructive) {
                     undoLastEvent()
                 } label: {
@@ -142,7 +151,7 @@ struct GameDetailView: View {
                 }
                 .disabled(sortedEvents.isEmpty)
             }
-            
+
             Section("Event Log") {
                 if sortedEvents.isEmpty {
                     Text("No events yet")
@@ -153,11 +162,11 @@ struct GameDetailView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(eventTitle(event))
                                     .font(.headline)
-                                
+
                                 Text(event.timestamp.formatted(date: .omitted, time: .standard))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                
+
                                 if let detail = eventDetail(event), !detail.isEmpty {
                                     Text(detail)
                                         .font(.subheadline)
@@ -169,6 +178,7 @@ struct GameDetailView: View {
                     .onDelete(perform: deleteEvents)
                 }
             }
+
             Section("Goalie") {
                 if goaliePlayers.isEmpty {
                     Text("No goalies on roster")
@@ -190,7 +200,7 @@ struct GameDetailView: View {
                     }
                 }
 
-                TextField("Shots Against", text: $shotsAgainstText)
+                TextField("Official Shots Against (optional)", text: $shotsAgainstText)
                     .keyboardType(.numberPad)
                     .focused($shotsFieldFocused)
                     .onChange(of: shotsAgainstText) { _, newValue in
@@ -204,6 +214,20 @@ struct GameDetailView: View {
                             }
                         }
                     }
+
+                HStack {
+                    Text("Tracked Opponent Shots")
+                    Spacer()
+                    Text("\(trackedOpponentShots)")
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    Text("Shots Against Used")
+                    Spacer()
+                    Text("\(shotsAgainstTotal)")
+                        .foregroundStyle(.secondary)
+                }
 
                 HStack {
                     Text("GA")
@@ -226,12 +250,15 @@ struct GameDetailView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-
         }
-        
+       
         .navigationTitle("Game")
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                NavigationLink(destination: GamePeriodBreakdownView(game: game)) {
+                    Image(systemName: "chart.xyaxis.line")
+                }
+
                 NavigationLink(destination: GameNotesView(game: game)) {
                     Image(systemName: "note.text")
                 }
@@ -323,6 +350,14 @@ struct GameDetailView: View {
         game.events.filter { $0.type == .shot }.count
     }
 
+    private var trackedOpponentShots: Int {
+        game.events.filter { $0.type == .opponentShot }.count
+    }
+
+    private var shotsAgainstTotal: Int {
+        game.shotsAgainst > 0 ? game.shotsAgainst : trackedOpponentShots
+    }
+
     private var totalPIM: Int {
         game.events
             .filter { $0.type == .penalty }
@@ -359,12 +394,12 @@ struct GameDetailView: View {
     }
 
     private var saves: Int {
-        max(game.shotsAgainst - goalsAgainst, 0)
+        max(shotsAgainstTotal - goalsAgainst, 0)
     }
 
     private var savePercentageText: String {
-        guard game.shotsAgainst > 0 else { return ".000" }
-        let value = Double(saves) / Double(game.shotsAgainst)
+        guard shotsAgainstTotal > 0 else { return ".000" }
+        let value = Double(saves) / Double(shotsAgainstTotal)
         return String(format: "%.3f", value)
     }
 
@@ -374,6 +409,8 @@ struct GameDetailView: View {
             return "Goal"
         case .shot:
             return "Shot"
+        case .opponentShot:
+            return "Opponent Shot"
         case .penalty:
             return "Penalty"
         case .plus:
@@ -425,6 +462,9 @@ struct GameDetailView: View {
                 if let player = event.primaryPlayer {
                     return "#\(player.number) \(player.name)"
                 }
+                return nil
+
+            case .opponentShot:
                 return nil
 
             case .penalty:
@@ -507,6 +547,16 @@ struct GameDetailView: View {
         for event in relatedEvents {
             context.delete(event)
         }
+    }
+
+    private func addOpponentShot() {
+        let event = GameEvent(
+            type: .opponentShot,
+            game: game,
+            periodNumber: game.currentPeriodNumber
+        )
+        context.insert(event)
+        game.events.append(event)
     }
 
     private func startGame() {

@@ -65,12 +65,14 @@ struct AddPlusMinusEventView: View {
     }
 
     private var sortedPlayers: [Player] {
-        (game.team?.players ?? []).sorted {
-            if $0.number == $1.number {
-                return $0.name < $1.name
+        (game.team?.players ?? [])
+            .filter { $0.position != .goalie }
+            .sorted {
+                if $0.number == $1.number {
+                    return $0.name < $1.name
+                }
+                return $0.number < $1.number
             }
-            return $0.number < $1.number
-        }
     }
 
     private func isSelected(_ player: Player) -> Bool {
