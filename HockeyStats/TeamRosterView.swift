@@ -58,10 +58,6 @@ struct TeamRosterView: View {
                     Image(systemName: "chart.line.uptrend.xyaxis")
                 }
 
-                NavigationLink(destination: TeamStatsView(team: team)) {
-                    Image(systemName: "chart.bar")
-                }
-
                 Button {
                     showingAddGame = true
                 } label: {

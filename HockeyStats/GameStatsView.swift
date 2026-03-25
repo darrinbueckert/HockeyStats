@@ -36,6 +36,8 @@ struct GamePlayerStats: Identifiable {
 struct GameStatsView: View {
     let game: Game
 
+    @State private var exportURL: URL?
+
     private var sortedPlayers: [Player] {
         (game.team?.players ?? []).sorted {
             if $0.number == $1.number {
@@ -68,13 +70,17 @@ struct GameStatsView: View {
         return "None selected"
     }
 
+    private var shotsAgainstUsed: Int {
+        game.shotsAgainst > 0 ? game.shotsAgainst : game.events.filter { $0.type == .opponentShot }.count
+    }
+
     private var goalieSaves: Int {
-        max(game.shotsAgainst - goalsAgainst, 0)
+        max(shotsAgainstUsed - goalsAgainst, 0)
     }
 
     private var goalieSavePercentageText: String {
-        guard game.shotsAgainst > 0 else { return ".000" }
-        let value = Double(goalieSaves) / Double(game.shotsAgainst)
+        guard shotsAgainstUsed > 0 else { return ".000" }
+        let value = Double(goalieSaves) / Double(shotsAgainstUsed)
         return String(format: "%.3f", value)
     }
 
@@ -107,7 +113,7 @@ struct GameStatsView: View {
                 HStack {
                     Text("Shots Against")
                     Spacer()
-                    Text("\(game.shotsAgainst)")
+                    Text("\(shotsAgainstUsed)")
                         .foregroundStyle(.secondary)
                 }
 
@@ -170,6 +176,21 @@ struct GameStatsView: View {
             }
         }
         .navigationTitle("Game Stats")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if let exportURL {
+                    ShareLink(item: exportURL) {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                } else {
+                    Button {
+                        exportURL = CSVExport.makeGameStatsCSV(for: game)
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                }
+            }
+        }
     }
 
     private func goalCount(for player: Player) -> Int {

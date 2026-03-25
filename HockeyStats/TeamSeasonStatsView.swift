@@ -43,6 +43,8 @@ struct SeasonGoalieStats: Identifiable {
 struct TeamSeasonStatsView: View {
     let team: Team
 
+    @State private var exportURL: URL?
+
     private var skaters: [Player] {
         team.players
             .filter { $0.position != .goalie }
@@ -93,33 +95,35 @@ struct TeamSeasonStatsView: View {
                     ForEach(skaters) { player in
                         let stats = skaterStats(for: player)
 
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text("#\(player.number) \(player.name)")
-                                    .font(.headline)
-                                Spacer()
-                                Text("\(stats.points) P")
-                                    .foregroundStyle(.secondary)
-                            }
+                        NavigationLink(destination: PlayerStatsDetailView(player: player, team: team)) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text("#\(player.number) \(player.name)")
+                                        .font(.headline)
+                                    Spacer()
+                                    Text("\(stats.points) P")
+                                        .foregroundStyle(.secondary)
+                                }
 
-                            HStack(spacing: 12) {
-                                Text("GP \(stats.gamesPlayed)")
-                                Text("G \(stats.goals)")
-                                Text("A \(stats.assists)")
-                                Text("S \(stats.shots)")
-                                Text("PIM \(stats.pim)")
-                                Text("+/- \(stats.plusMinus)")
-                            }
-                            .font(.subheadline)
+                                HStack(spacing: 12) {
+                                    Text("GP \(stats.gamesPlayed)")
+                                    Text("G \(stats.goals)")
+                                    Text("A \(stats.assists)")
+                                    Text("S \(stats.shots)")
+                                    Text("PIM \(stats.pim)")
+                                    Text("+/- \(stats.plusMinus)")
+                                }
+                                .font(.subheadline)
 
-                            HStack(spacing: 12) {
-                                Text("PPG \(stats.ppGoals)")
-                                Text("SHG \(stats.shGoals)")
+                                HStack(spacing: 12) {
+                                    Text("PPG \(stats.ppGoals)")
+                                    Text("SHG \(stats.shGoals)")
+                                }
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                             }
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 2)
                         }
-                        .padding(.vertical, 2)
                     }
                 }
             }
@@ -132,35 +136,52 @@ struct TeamSeasonStatsView: View {
                     ForEach(goalies) { player in
                         let stats = goalieStats(for: player)
 
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text("#\(player.number) \(player.name)")
-                                    .font(.headline)
-                                Spacer()
-                                Text(stats.savePercentageText)
-                                    .foregroundStyle(.secondary)
-                            }
+                        NavigationLink(destination: PlayerStatsDetailView(player: player, team: team)) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text("#\(player.number) \(player.name)")
+                                        .font(.headline)
+                                    Spacer()
+                                    Text(stats.savePercentageText)
+                                        .foregroundStyle(.secondary)
+                                }
 
-                            HStack(spacing: 12) {
-                                Text("GP \(stats.gamesPlayed)")
-                                Text("SA \(stats.shotsAgainst)")
-                                Text("GA \(stats.goalsAgainst)")
-                                Text("SV \(stats.saves)")
-                            }
-                            .font(.subheadline)
+                                HStack(spacing: 12) {
+                                    Text("GP \(stats.gamesPlayed)")
+                                    Text("SA \(stats.shotsAgainst)")
+                                    Text("GA \(stats.goalsAgainst)")
+                                    Text("SV \(stats.saves)")
+                                }
+                                .font(.subheadline)
 
-                            HStack(spacing: 12) {
-                                Text("SV% \(stats.savePercentageText)")
+                                HStack(spacing: 12) {
+                                    Text("SV% \(stats.savePercentageText)")
+                                }
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                             }
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .padding(.vertical, 2)
                         }
-                        .padding(.vertical, 2)
                     }
                 }
             }
         }
         .navigationTitle("Season Stats")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if let exportURL {
+                    ShareLink(item: exportURL) {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                } else {
+                    Button {
+                        exportURL = CSVExport.makeSeasonStatsCSV(for: team)
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                }
+            }
+        }
     }
 
     private func skaterStats(for player: Player) -> SeasonSkaterStats {
