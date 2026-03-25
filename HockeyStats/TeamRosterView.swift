@@ -21,6 +21,9 @@ struct TeamRosterView: View {
                             Text("#\(player.number)")
                                 .bold()
                             Text(player.name)
+                            Spacer()
+                            Text(player.position.shortLabel)
+                                .foregroundStyle(.secondary)
                         }
                     }
                     .onDelete(perform: deletePlayers)
@@ -78,10 +81,22 @@ struct TeamRosterView: View {
 
     private var sortedPlayers: [Player] {
         team.players.sorted {
-            if $0.number == $1.number {
-                return $0.name < $1.name
+            if $0.positionRaw == $1.positionRaw {
+                if $0.number == $1.number {
+                    return $0.name < $1.name
+                }
+                return $0.number < $1.number
             }
-            return $0.number < $1.number
+            return sortOrder(for: $0.position) < sortOrder(for: $1.position)
+        }
+    }
+
+    private func sortOrder(for position: PlayerPosition) -> Int {
+        switch position {
+        case .forward: return 0
+        case .defense: return 1
+        case .goalie: return 2
+        case .unknown: return 3
         }
     }
 

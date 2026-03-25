@@ -1,12 +1,30 @@
-//
-//  Player.swift
-//  HockeyStats
-//
-//  Created by DarrinB on 2026-03-24.
-//
-
 import Foundation
 import SwiftData
+
+enum PlayerPosition: String, Codable, CaseIterable {
+    case unknown
+    case forward
+    case defense
+    case goalie
+
+    var label: String {
+        switch self {
+        case .unknown: return "Unknown"
+        case .forward: return "Forward"
+        case .defense: return "Defense"
+        case .goalie: return "Goalie"
+        }
+    }
+
+    var shortLabel: String {
+        switch self {
+        case .unknown: return "-"
+        case .forward: return "F"
+        case .defense: return "D"
+        case .goalie: return "G"
+        }
+    }
+}
 
 @Model
 class Player {
@@ -14,9 +32,17 @@ class Player {
     var number: Int
     var team: Team?
 
-    init(name: String, number: Int, team: Team? = nil) {
+    var positionRaw: String
+
+    init(name: String, number: Int, team: Team? = nil, position: PlayerPosition = .unknown) {
         self.name = name
         self.number = number
         self.team = team
+        self.positionRaw = position.rawValue
+    }
+
+    var position: PlayerPosition {
+        get { PlayerPosition(rawValue: positionRaw) ?? .unknown }
+        set { positionRaw = newValue.rawValue }
     }
 }

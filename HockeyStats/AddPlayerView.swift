@@ -1,10 +1,3 @@
-//
-//  AddPlayerView.swift
-//  HockeyStats
-//
-//  Created by DarrinB on 2026-03-24.
-//
-
 import SwiftUI
 import SwiftData
 
@@ -16,6 +9,7 @@ struct AddPlayerView: View {
 
     @State private var name = ""
     @State private var number = ""
+    @State private var position: PlayerPosition = .unknown
 
     var body: some View {
         NavigationStack {
@@ -23,6 +17,12 @@ struct AddPlayerView: View {
                 Section("Player") {
                     TextField("Player Name", text: $name)
                     TextField("Number", text: $number)
+
+                    Picker("Position", selection: $position) {
+                        ForEach(PlayerPosition.allCases, id: \.self) { value in
+                            Text(value.label).tag(value)
+                        }
+                    }
                 }
 
                 Section("Team") {
@@ -46,7 +46,8 @@ struct AddPlayerView: View {
                         let player = Player(
                             name: trimmedName,
                             number: Int(number) ?? 0,
-                            team: team
+                            team: team,
+                            position: position
                         )
 
                         context.insert(player)
