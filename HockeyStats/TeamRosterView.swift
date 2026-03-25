@@ -54,6 +54,10 @@ struct TeamRosterView: View {
         .navigationTitle(team.name)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                NavigationLink(destination: TeamSeasonStatsView(team: team)) {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                }
+
                 NavigationLink(destination: TeamStatsView(team: team)) {
                     Image(systemName: "chart.bar")
                 }
