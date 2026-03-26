@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "hockey_icon_1024 1.png",
+      "filename" : "dino_hockey_icon_1024_ios_opaque 1.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -13,7 +13,7 @@
           "value" : "dark"
         }
       ],
-      "filename" : "hockey_icon_1024.png",
+      "filename" : "dino_hockey_icon_1024_ios_opaque 2.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -25,7 +25,7 @@
           "value" : "tinted"
         }
       ],
-      "filename" : "hockey_icon_1024 2.png",
+      "filename" : "dino_hockey_icon_1024_ios_opaque.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
