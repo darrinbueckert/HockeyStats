@@ -9,6 +9,8 @@ struct TeamRosterView: View {
     @State private var showingAddPlayer = false
     @State private var showingAddGame = false
     @State private var editingPlayer: Player?
+    @State private var playerToDelete: Player?
+    @State private var showingDeleteAlert = false
 
     var body: some View {
         List {
@@ -95,6 +97,20 @@ struct TeamRosterView: View {
         .sheet(item: $editingPlayer) { player in
             EditPlayerView(player: player)
         }
+        .alert("Delete Player?", isPresented: $showingDeleteAlert) {
+            Button("Delete", role: .destructive) {
+                if let player = playerToDelete {
+                    context.delete(player)
+                }
+                playerToDelete = nil
+            }
+
+            Button("Cancel", role: .cancel) {
+                playerToDelete = nil
+            }
+        } message: {
+            Text("Deleting this player may affect existing game stats. This cannot be undone.")
+        }
     }
 
     private var sortedPlayers: [Player] {
@@ -123,10 +139,9 @@ struct TeamRosterView: View {
     }
 
     private func deletePlayers(at offsets: IndexSet) {
-        for index in offsets {
-            let player = sortedPlayers[index]
-            context.delete(player)
-        }
+        guard let index = offsets.first else { return }
+        playerToDelete = sortedPlayers[index]
+        showingDeleteAlert = true
     }
 
     private func deleteGames(at offsets: IndexSet) {
