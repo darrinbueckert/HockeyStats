@@ -171,6 +171,7 @@ struct TeamRosterView: View {
                     .fontWeight(.bold)
 
                 HStack(spacing: 8) {
+                    statPill(recordText)
                     statPill("\(team.players.count) players")
                     statPill("\(team.games.count) games")
                 }
@@ -300,6 +301,29 @@ struct TeamRosterView: View {
             }
             return sortOrder(for: $0.position) < sortOrder(for: $1.position)
         }
+    }
+
+    private var scoredGames: [Game] {
+        team.games.filter { $0.teamScore != nil && $0.opponentScore != nil }
+    }
+
+    private var wins: Int {
+        scoredGames.filter { ($0.teamScore ?? 0) > ($0.opponentScore ?? 0) }.count
+    }
+
+    private var losses: Int {
+        scoredGames.filter { ($0.teamScore ?? 0) < ($0.opponentScore ?? 0) }.count
+    }
+
+    private var ties: Int {
+        scoredGames.filter { ($0.teamScore ?? 0) == ($0.opponentScore ?? 0) }.count
+    }
+
+    private var recordText: String {
+        if scoredGames.isEmpty {
+            return "No record yet"
+        }
+        return "\(wins)-\(losses)-\(ties)"
     }
 
     private var playerDeleteTitle: String {

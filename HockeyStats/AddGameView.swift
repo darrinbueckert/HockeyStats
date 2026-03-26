@@ -1,10 +1,3 @@
-//
-//  AddGameView.swift
-//  HockeyStats
-//
-//  Created by DarrinB on 2026-03-24.
-//
-
 import SwiftUI
 import SwiftData
 
@@ -16,6 +9,8 @@ struct AddGameView: View {
 
     @State private var opponent = ""
     @State private var date = Date()
+    @State private var teamScore = ""
+    @State private var opponentScore = ""
 
     var body: some View {
         NavigationStack {
@@ -23,6 +18,12 @@ struct AddGameView: View {
                 Section("Game") {
                     TextField("Opponent", text: $opponent)
                     DatePicker("Date", selection: $date)
+
+                    TextField("Your Score (optional)", text: $teamScore)
+                        .keyboardType(.numberPad)
+
+                    TextField("Opponent Score (optional)", text: $opponentScore)
+                        .keyboardType(.numberPad)
                 }
 
                 Section("Team") {
@@ -43,7 +44,29 @@ struct AddGameView: View {
                         let trimmedOpponent = opponent.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !trimmedOpponent.isEmpty else { return }
 
-                        let game = Game(date: date, opponent: trimmedOpponent, team: team)
+                        let parsedTeamScore = Int(teamScore.trimmingCharacters(in: .whitespacesAndNewlines))
+                        let parsedOpponentScore = Int(opponentScore.trimmingCharacters(in: .whitespacesAndNewlines))
+
+                        let finalTeamScore: Int?
+                        let finalOpponentScore: Int?
+
+                        if teamScore.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                            opponentScore.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            finalTeamScore = nil
+                            finalOpponentScore = nil
+                        } else {
+                            finalTeamScore = parsedTeamScore ?? 0
+                            finalOpponentScore = parsedOpponentScore ?? 0
+                        }
+
+                        let game = Game(
+                            date: date,
+                            opponent: trimmedOpponent,
+                            team: team,
+                            teamScore: finalTeamScore,
+                            opponentScore: finalOpponentScore
+                        )
+
                         context.insert(game)
                         team.games.append(game)
                         dismiss()

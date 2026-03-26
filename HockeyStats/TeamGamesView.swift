@@ -74,8 +74,6 @@ struct TeamGamesView: View {
         }
     }
 
-    // MARK: - Header
-
     private var teamHeader: some View {
         HStack(spacing: 16) {
             if let data = team.logoData,
@@ -102,6 +100,7 @@ struct TeamGamesView: View {
                     .fontWeight(.bold)
 
                 HStack(spacing: 8) {
+                    statPill(recordText)
                     statPill("\(team.games.count) games")
                 }
             }
@@ -114,8 +113,6 @@ struct TeamGamesView: View {
                 .fill(Color(.secondarySystemGroupedBackground))
         )
     }
-
-    // MARK: - Game Row
 
     private func gameRow(for game: Game) -> some View {
         HStack(spacing: 14) {
@@ -140,6 +137,20 @@ struct TeamGamesView: View {
 
             Spacer()
 
+            if let teamScore = game.teamScore,
+               let opponentScore = game.opponentScore {
+                Text("\(teamScore)-\(opponentScore)")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(Color(.tertiarySystemGroupedBackground))
+                    )
+                    .foregroundStyle(.primary)
+            }
+
             Image(systemName: "chevron.right")
                 .font(.caption)
                 .foregroundStyle(.tertiary)
@@ -150,8 +161,6 @@ struct TeamGamesView: View {
                 .fill(Color(.secondarySystemGroupedBackground))
         )
     }
-
-    // MARK: - Empty State
 
     private var emptyState: some View {
         VStack(spacing: 12) {
@@ -189,8 +198,6 @@ struct TeamGamesView: View {
         )
     }
 
-    // MARK: - Helpers
-
     private func sectionHeader(_ title: String) -> some View {
         Text(title)
             .font(.headline)
@@ -211,6 +218,29 @@ struct TeamGamesView: View {
 
     private var sortedGames: [Game] {
         team.games.sorted { $0.date > $1.date }
+    }
+
+    private var scoredGames: [Game] {
+        team.games.filter { $0.teamScore != nil && $0.opponentScore != nil }
+    }
+
+    private var wins: Int {
+        scoredGames.filter { ($0.teamScore ?? 0) > ($0.opponentScore ?? 0) }.count
+    }
+
+    private var losses: Int {
+        scoredGames.filter { ($0.teamScore ?? 0) < ($0.opponentScore ?? 0) }.count
+    }
+
+    private var ties: Int {
+        scoredGames.filter { ($0.teamScore ?? 0) == ($0.opponentScore ?? 0) }.count
+    }
+
+    private var recordText: String {
+        if scoredGames.isEmpty {
+            return "No record yet"
+        }
+        return "\(wins)-\(losses)-\(ties)"
     }
 
     private var gameDeleteTitle: String {

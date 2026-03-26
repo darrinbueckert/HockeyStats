@@ -14,11 +14,19 @@ class Game {
     var isGameStarted: Bool
     var isGameEnded: Bool
     var isShootout: Bool
-
     var goalie: Player?
     var shotsAgainst: Int
 
-    init(date: Date = Date(), opponent: String, team: Team? = nil) {
+    var teamScore: Int?
+    var opponentScore: Int?
+
+    init(
+        date: Date = Date(),
+        opponent: String,
+        team: Team? = nil,
+        teamScore: Int? = nil,
+        opponentScore: Int? = nil
+    ) {
         self.date = date
         self.opponent = opponent
         self.team = team
@@ -28,5 +36,7 @@ class Game {
         self.isShootout = false
         self.goalie = nil
         self.shotsAgainst = 0
+        self.teamScore = teamScore
+        self.opponentScore = opponentScore
     }
 }
