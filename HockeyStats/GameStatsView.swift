@@ -22,11 +22,26 @@ struct GamePlayerStats: Identifiable {
     }
 }
 
+struct GameGoalieStats: Identifiable {
+    let id = UUID()
+    let goalie: Player
+    let shotsAgainst: Int
+    let goalsAgainst: Int
+
+    var saves: Int { max(shotsAgainst - goalsAgainst, 0) }
+
+    var savePercentageText: String {
+        guard shotsAgainst > 0 else { return ".000" }
+        let value = Double(saves) / Double(shotsAgainst)
+        return String(format: "%.3f", value)
+    }
+}
+
 struct GameStatsView: View {
     let game: Game
 
-    @State private var exportURL: URL?
-    @State private var showingShareSheet = false
+    @State private var csvDocument: ExportCSVDocument?
+    @State private var showingCSVExporter = false
     @State private var htmlDocument: ExportTextDocument?
     @State private var showingHTMLExporter = false
 
@@ -53,36 +68,38 @@ struct GameStatsView: View {
         }
     }
 
-    private var goalieName: String {
-        if let goalie = game.goalie {
-            return "#\(goalie.number) \(goalie.name)"
+    private var goaliePlayers: [Player] {
+        (game.team?.players ?? [])
+            .filter { $0.position == .goalie }
+            .sorted {
+                if $0.number == $1.number { return $0.name < $1.name }
+                return $0.number < $1.number
+            }
+    }
+
+    private var goalieStats: [GameGoalieStats] {
+        goaliePlayers.compactMap { goalie in
+            let shotsAgainst = trackedOpponentShots(for: goalie)
+            let goalsAgainst = trackedGoalsAgainst(for: goalie)
+
+            guard shotsAgainst > 0 || goalsAgainst > 0 || game.goalie?.persistentModelID == goalie.persistentModelID else {
+                return nil
+            }
+
+            return GameGoalieStats(
+                goalie: goalie,
+                shotsAgainst: shotsAgainst,
+                goalsAgainst: goalsAgainst
+            )
         }
-        return "None selected"
     }
 
     private var shotsAgainstUsed: Int {
         game.shotsAgainst > 0 ? game.shotsAgainst : game.events.filter { $0.type == .opponentShot }.count
     }
 
-    private var goalieSaves: Int {
-        max(shotsAgainstUsed - goalsAgainst, 0)
-    }
-
-    private var goalieSavePercentageText: String {
-        guard shotsAgainstUsed > 0 else { return ".000" }
-        let value = Double(goalieSaves) / Double(shotsAgainstUsed)
-        return String(format: "%.3f", value)
-    }
-
     private var goalsAgainst: Int {
         game.events.filter { $0.type == .goalAgainst }.count
-    }
-
-    private var gameReportFilename: String {
-        let teamName = sanitizedFilenamePart(game.team?.name ?? "Team")
-        let opponentName = sanitizedFilenamePart(game.opponent)
-        let dateText = game.date.formatted(.iso8601.year().month().day())
-        return "\(teamName)_vs_\(opponentName)_\(dateText)"
     }
 
     var body: some View {
@@ -99,40 +116,63 @@ struct GameStatsView: View {
                 }
             }
 
-            Section("Goalie") {
-                HStack {
-                    Text("Goalie")
-                    Spacer()
-                    Text(goalieName)
-                        .foregroundStyle(.secondary)
-                }
+            Section("Goalies") {
+                if goalieStats.isEmpty {
+                    HStack {
+                        Text("Goalie")
+                        Spacer()
+                        Text(game.goalie.map { "#\($0.number) \($0.name)" } ?? "None selected")
+                            .foregroundStyle(.secondary)
+                    }
 
-                HStack {
-                    Text("Shots Against")
-                    Spacer()
-                    Text("\(shotsAgainstUsed)")
-                        .foregroundStyle(.secondary)
-                }
+                    HStack {
+                        Text("Shots Against")
+                        Spacer()
+                        Text("\(shotsAgainstUsed)")
+                            .foregroundStyle(.secondary)
+                    }
 
-                HStack {
-                    Text("Goals Against")
-                    Spacer()
-                    Text("\(goalsAgainst)")
-                        .foregroundStyle(.secondary)
-                }
+                    HStack {
+                        Text("Goals Against")
+                        Spacer()
+                        Text("\(goalsAgainst)")
+                            .foregroundStyle(.secondary)
+                    }
 
-                HStack {
-                    Text("Saves")
-                    Spacer()
-                    Text("\(goalieSaves)")
-                        .foregroundStyle(.secondary)
-                }
+                    HStack {
+                        Text("Saves")
+                        Spacer()
+                        Text("\(max(shotsAgainstUsed - goalsAgainst, 0))")
+                            .foregroundStyle(.secondary)
+                    }
 
-                HStack {
-                    Text("SV%")
-                    Spacer()
-                    Text(goalieSavePercentageText)
-                        .foregroundStyle(.secondary)
+                    HStack {
+                        Text("SV%")
+                        Spacer()
+                        let value = shotsAgainstUsed > 0 ? Double(max(shotsAgainstUsed - goalsAgainst, 0)) / Double(shotsAgainstUsed) : 0
+                        Text(shotsAgainstUsed > 0 ? String(format: "%.3f", value) : ".000")
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    ForEach(goalieStats) { stat in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("#\(stat.goalie.number) \(stat.goalie.name)")
+                                    .font(.headline)
+                                Spacer()
+                                Text("SV% \(stat.savePercentageText)")
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            HStack(spacing: 12) {
+                                Text("SA \(stat.shotsAgainst)")
+                                Text("GA \(stat.goalsAgainst)")
+                                Text("SV \(stat.saves)")
+                            }
+                            .font(.subheadline)
+                        }
+                        .padding(.vertical, 2)
+                    }
                 }
             }
 
@@ -176,14 +216,7 @@ struct GameStatsView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button("Export CSV") {
-                        if let url = CSVExport.makeGameStatsCSV(for: game) {
-                            exportURL = url
-                            showingShareSheet = true
-                        }
-                    }
-
-                    Button("Save HTML Report") {
+                   Button("Save HTML Report") {
                         if let url = HTMLExport.makeGameReportHTML(for: game),
                            let html = try? String(contentsOf: url, encoding: .utf8) {
                             htmlDocument = ExportTextDocument(text: html)
@@ -195,9 +228,17 @@ struct GameStatsView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingShareSheet) {
-            if let exportURL {
-                ShareSheet(items: [exportURL])
+        .fileExporter(
+            isPresented: $showingCSVExporter,
+            document: csvDocument,
+            contentType: .commaSeparatedText,
+            defaultFilename: gameReportFilename
+        ) { result in
+            switch result {
+            case .success(let url):
+                print("Saved CSV to: \(url)")
+            case .failure(let error):
+                print("CSV export failed: \(error.localizedDescription)")
             }
         }
         .fileExporter(
@@ -215,12 +256,47 @@ struct GameStatsView: View {
         }
     }
 
+    private var gameReportFilename: String {
+        let teamName = sanitizedFilenamePart(game.team?.name ?? "Team")
+        let opponentName = sanitizedFilenamePart(game.opponent)
+        let dateText = game.date.formatted(.iso8601.year().month().day())
+        return "\(teamName)_vs_\(opponentName)_\(dateText)"
+    }
+
     private func sanitizedFilenamePart(_ text: String) -> String {
         let invalidCharacters = CharacterSet(charactersIn: "\\/:*?\"<>|")
         let cleaned = text.components(separatedBy: invalidCharacters).joined(separator: "")
         return cleaned
             .replacingOccurrences(of: " ", with: "_")
             .replacingOccurrences(of: "&", with: "and")
+    }
+
+    private func activeGoalie(at timestamp: Date) -> Player? {
+        let sorted = game.events.sorted { $0.timestamp < $1.timestamp }
+        var active: Player? = nil
+
+        for event in sorted {
+            if event.timestamp > timestamp { break }
+            if event.type == .goalieChange {
+                active = event.primaryPlayer
+            }
+        }
+
+        return active
+    }
+
+    private func trackedOpponentShots(for goalie: Player) -> Int {
+        game.events.filter {
+            $0.type == .opponentShot &&
+            activeGoalie(at: $0.timestamp)?.persistentModelID == goalie.persistentModelID
+        }.count
+    }
+
+    private func trackedGoalsAgainst(for goalie: Player) -> Int {
+        game.events.filter {
+            $0.type == .goalAgainst &&
+            activeGoalie(at: $0.timestamp)?.persistentModelID == goalie.persistentModelID
+        }.count
     }
 
     private func goalCount(for player: Player) -> Int {

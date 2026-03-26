@@ -14,12 +14,15 @@ enum GameEventType: String, Codable, CaseIterable {
     case gameEnd
     case shootoutAttemptFor
     case shootoutAttemptAgainst
+    case goalieChange
 }
 
 enum GoalStrength: String, Codable, CaseIterable {
     case even
     case powerPlay
     case shortHanded
+
+    
 }
 
 @Model

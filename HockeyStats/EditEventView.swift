@@ -66,7 +66,7 @@ struct EditEventView: View {
                 EditGoalAgainstEventView(game: game, event: event)
             case .note:
                 EditNoteEventView(game: game, event: event)
-            case .gameStart, .gameEnd, .shootoutAttemptFor, .shootoutAttemptAgainst:
+            case .gameStart, .gameEnd, .shootoutAttemptFor, .shootoutAttemptAgainst, .goalieChange:
                 EditSimpleEventView(game: game, event: event)
             }
         }

@@ -16,7 +16,11 @@ struct GameDetailView: View {
     @State private var showingShootoutAgainst = false
 
     @State private var selectedGoalieID: PersistentIdentifier?
+    @State private var pendingGoalieID: PersistentIdentifier?
     @State private var shotsAgainstText = ""
+
+    @State private var showingStartGoaliePrompt = false
+    @State private var showingChangeGoaliePrompt = false
 
     @FocusState private var shotsFieldFocused: Bool
 
@@ -78,7 +82,7 @@ struct GameDetailView: View {
 
             Section("Game Control") {
                 Button("Start Game") {
-                    startGame()
+                    startGamePressed()
                 }
                 .disabled(game.isGameStarted && !game.isGameEnded)
 
@@ -96,6 +100,11 @@ struct GameDetailView: View {
                     endGame()
                 }
                 .disabled(!game.isGameStarted || game.isGameEnded)
+
+                Button("Change Goalie") {
+                    showingChangeGoaliePrompt = true
+                }
+                .disabled(!game.isGameStarted || game.isGameEnded || goaliePlayers.isEmpty)
             }
 
             Section("Quick Actions") {
@@ -104,23 +113,45 @@ struct GameDetailView: View {
                 }
                 .disabled(!canRecordRegularEvents)
 
-                Button("Add Shot") {
-                    showingShot = true
-                }
-                .disabled(!canRecordRegularEvents)
+                HStack(spacing: 12) {
+                    Button {
+                        showingShot = true
+                    } label: {
+                        Text("Detailed Shot")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!canRecordRegularEvents)
 
-                Button("Add Opponent Shot") {
-                    addOpponentShot()
+                    Button {
+                        addQuickShot()
+                    } label: {
+                        Text("Quick Shot")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!canRecordRegularEvents)
                 }
-                .disabled(!canRecordRegularEvents)
+
+                HStack(spacing: 12) {
+                    Button {
+                        addOpponentShot()
+                    } label: {
+                        Text("Opponent Shot")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!canRecordRegularEvents)
+
+                    Button("Add Opponent Goal") {
+                        showingGoalAgainst = true
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .disabled(!canRecordRegularEvents)
+                }
 
                 Button("Add Penalty") {
                     showingPenalty = true
-                }
-                .disabled(!canRecordRegularEvents)
-
-                Button("Add Opponent Goal") {
-                    showingGoalAgainst = true
                 }
                 .disabled(!canRecordRegularEvents)
 
@@ -184,18 +215,15 @@ struct GameDetailView: View {
                     Text("No goalies on roster")
                         .foregroundStyle(.secondary)
                 } else {
-                    Picker("Goalie", selection: $selectedGoalieID) {
-                        Text("Select").tag(nil as PersistentIdentifier?)
-                        ForEach(goaliePlayers) { player in
-                            Text("#\(player.number) \(player.name)")
-                                .tag(Optional(player.persistentModelID))
-                        }
-                    }
-                    .onChange(of: selectedGoalieID) { _, newValue in
-                        if let newValue {
-                            game.goalie = goaliePlayers.first(where: { $0.persistentModelID == newValue })
+                    HStack {
+                        Text("Current Goalie")
+                        Spacer()
+                        if let goalie = game.goalie {
+                            Text("#\(goalie.number) \(goalie.name)")
+                                .foregroundStyle(.secondary)
                         } else {
-                            game.goalie = nil
+                            Text("None selected")
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -251,7 +279,6 @@ struct GameDetailView: View {
                 }
             }
         }
-       
         .navigationTitle("Game")
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
@@ -292,9 +319,81 @@ struct GameDetailView: View {
         .sheet(isPresented: $showingShootoutAgainst) {
             AddShootoutEventView(game: game, isForTeam: false)
         }
+        .confirmationDialog(
+            "Select Starting Goalie",
+            isPresented: $showingStartGoaliePrompt,
+            titleVisibility: .visible
+        ) {
+            ForEach(goaliePlayers) { player in
+                Button("#\(player.number) \(player.name)") {
+                    pendingGoalieID = player.persistentModelID
+                    applyGoalieChange(to: player.persistentModelID, logEvent: true)
+                    startGame()
+                }
+            }
+
+            Button("Start Without Goalie", role: .destructive) {
+                pendingGoalieID = nil
+                applyGoalieChange(to: nil, logEvent: false)
+                startGame()
+            }
+
+            Button("Cancel", role: .cancel) {
+                pendingGoalieID = nil
+            }
+        } message: {
+            Text("Choose the goalie starting this game.")
+        }
+        .confirmationDialog(
+            "Change Goalie",
+            isPresented: $showingChangeGoaliePrompt,
+            titleVisibility: .visible
+        ) {
+            ForEach(goaliePlayers) { player in
+                Button("#\(player.number) \(player.name)") {
+                    pendingGoalieID = player.persistentModelID
+                    applyGoalieChange(to: player.persistentModelID, logEvent: true)
+                }
+            }
+
+            Button("No Goalie", role: .destructive) {
+                pendingGoalieID = nil
+                applyGoalieChange(to: nil, logEvent: true)
+            }
+
+            Button("Cancel", role: .cancel) {
+                pendingGoalieID = nil
+            }
+        } message: {
+            Text("Changing goalies will affect goalie stats for the rest of the game.")
+        }
         .onAppear {
             selectedGoalieID = game.goalie?.persistentModelID
             shotsAgainstText = game.shotsAgainst == 0 ? "" : "\(game.shotsAgainst)"
+        }
+    }
+
+    private func applyGoalieChange(to newID: PersistentIdentifier?, logEvent: Bool) {
+        let newGoalie = goaliePlayers.first(where: { $0.persistentModelID == newID })
+        let oldGoalieID = game.goalie?.persistentModelID
+
+        if oldGoalieID == newID {
+            return
+        }
+
+        game.goalie = newGoalie
+        selectedGoalieID = newID
+
+        if logEvent, game.isGameStarted {
+            let event = GameEvent(
+                type: .goalieChange,
+                game: game,
+                primaryPlayer: newGoalie,
+                noteText: newGoalie == nil ? "Goalie removed" : nil,
+                periodNumber: game.currentPeriodNumber
+            )
+            context.insert(event)
+            game.events.append(event)
         }
     }
 
@@ -429,6 +528,11 @@ struct GameDetailView: View {
             return "Shootout Attempt"
         case .shootoutAttemptAgainst:
             return "Opponent Shootout Attempt"
+        case .goalieChange:
+            let hasEarlierGoalieEvent = game.events.contains {
+                $0.type == .goalieChange && $0.timestamp < event.timestamp
+            }
+            return hasEarlierGoalieEvent ? "Goalie Change" : "Starting Goalie"
         }
     }
 
@@ -462,7 +566,7 @@ struct GameDetailView: View {
                 if let player = event.primaryPlayer {
                     return "#\(player.number) \(player.name)"
                 }
-                return nil
+                return "Unassigned"
 
             case .opponentShot:
                 return nil
@@ -519,6 +623,12 @@ struct GameDetailView: View {
 
             case .shootoutAttemptAgainst:
                 return event.didScore == true ? "Scored" : "Missed"
+
+            case .goalieChange:
+                if let goalie = event.primaryPlayer {
+                    return "#\(goalie.number) \(goalie.name)"
+                }
+                return event.noteText
             }
         }()
 
@@ -549,6 +659,16 @@ struct GameDetailView: View {
         }
     }
 
+    private func addQuickShot() {
+        let event = GameEvent(
+            type: .shot,
+            game: game,
+            periodNumber: game.currentPeriodNumber
+        )
+        context.insert(event)
+        game.events.append(event)
+    }
+
     private func addOpponentShot() {
         let event = GameEvent(
             type: .opponentShot,
@@ -559,6 +679,16 @@ struct GameDetailView: View {
         game.events.append(event)
     }
 
+    private func startGamePressed() {
+        guard !game.isGameStarted || game.isGameEnded else { return }
+
+        if goaliePlayers.isEmpty || game.goalie != nil {
+            startGame()
+        } else {
+            showingStartGoaliePrompt = true
+        }
+    }
+
     private func startGame() {
         guard !game.isGameStarted || game.isGameEnded else { return }
 
@@ -567,9 +697,20 @@ struct GameDetailView: View {
         game.isShootout = false
         game.currentPeriodNumber = 1
 
-        let event = GameEvent(type: .gameStart, game: game)
-        context.insert(event)
-        game.events.append(event)
+        let startEvent = GameEvent(type: .gameStart, game: game)
+        context.insert(startEvent)
+        game.events.append(startEvent)
+
+        if let goalie = game.goalie {
+            let goalieEvent = GameEvent(
+                type: .goalieChange,
+                game: game,
+                primaryPlayer: goalie,
+                periodNumber: 1
+            )
+            context.insert(goalieEvent)
+            game.events.append(goalieEvent)
+        }
     }
 
     private func nextPeriod() {
@@ -590,14 +731,11 @@ struct GameDetailView: View {
     private func endGame() {
         guard game.isGameStarted, !game.isGameEnded else { return }
 
-        // Calculate final score from events
         let teamGoals = game.events.filter { $0.type == .goalFor }.count
         let opponentGoals = game.events.filter { $0.type == .goalAgainst }.count
 
-        // Save final score
         game.teamScore = teamGoals
         game.opponentScore = opponentGoals
-
         game.isGameEnded = true
 
         let event = GameEvent(type: .gameEnd, game: game)

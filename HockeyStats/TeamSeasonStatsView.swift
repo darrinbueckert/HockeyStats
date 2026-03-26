@@ -42,8 +42,8 @@ struct SeasonGoalieStats: Identifiable {
 struct TeamSeasonStatsView: View {
     let team: Team
 
-    @State private var exportURL: URL?
-    @State private var showingShareSheet = false
+    @State private var csvDocument: ExportCSVDocument?
+    @State private var showingCSVExporter = false
     @State private var htmlDocument: ExportTextDocument?
     @State private var showingHTMLExporter = false
 
@@ -180,13 +180,7 @@ struct TeamSeasonStatsView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button("Export CSV") {
-                        if let url = CSVExport.makeSeasonStatsCSV(for: team) {
-                            exportURL = url
-                            showingShareSheet = true
-                        }
-                    }
-
+                    
                     Button("Save HTML Report") {
                         if let url = HTMLExport.makeSeasonReportHTML(for: team),
                            let html = try? String(contentsOf: url, encoding: .utf8) {
@@ -199,9 +193,17 @@ struct TeamSeasonStatsView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingShareSheet) {
-            if let exportURL {
-                ShareSheet(items: [exportURL])
+        .fileExporter(
+            isPresented: $showingCSVExporter,
+            document: csvDocument,
+            contentType: .commaSeparatedText,
+            defaultFilename: seasonReportFilename
+        ) { result in
+            switch result {
+            case .success(let url):
+                print("Saved CSV to: \(url)")
+            case .failure(let error):
+                print("CSV export failed: \(error.localizedDescription)")
             }
         }
         .fileExporter(

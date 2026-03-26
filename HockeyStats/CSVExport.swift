@@ -91,8 +91,8 @@ enum CSVExport {
         let goalsFor = game.events.filter { $0.type == .goalFor }.count
         let goalsAgainst = game.events.filter { $0.type == .goalAgainst }.count
         let shotsFor = game.events.filter { $0.type == .shot }.count
-        let trackedOpponentShots = game.events.filter { $0.type == .opponentShot }.count
-        let shotsAgainstUsed = game.shotsAgainst > 0 ? game.shotsAgainst : trackedOpponentShots
+        let trackedOpponentShotsCount = game.events.filter { $0.type == .opponentShot }.count
+        let shotsAgainstUsed = game.shotsAgainst > 0 ? game.shotsAgainst : trackedOpponentShotsCount
         let totalPIM = game.events
             .filter { $0.type == .penalty }
             .compactMap(\.pimMinutes)
@@ -103,27 +103,38 @@ enum CSVExport {
         let shootoutFor = game.events.filter { $0.type == .shootoutAttemptFor && $0.didScore == true }.count
         let shootoutAgainst = game.events.filter { $0.type == .shootoutAttemptAgainst && $0.didScore == true }.count
 
-        let goalies: [(number: Int, name: String, gamesPlayed: Int, shotsAgainst: Int, goalsAgainst: Int, saves: Int, savePercentageText: String)] = {
-            if let goalie = game.goalie {
-                let ga = goalsAgainst
-                let sa = shotsAgainstUsed
-                let sv = max(sa - ga, 0)
+        let goaliePlayers = (game.team?.players ?? [])
+            .filter { $0.position == .goalie }
+            .sorted {
+                if $0.number == $1.number { return $0.name < $1.name }
+                return $0.number < $1.number
+            }
+
+        let goalies: [(number: Int, name: String, gamesPlayed: Int, shotsAgainst: Int, goalsAgainst: Int, saves: Int, savePercentageText: String)] =
+            goaliePlayers.compactMap { goalie in
+                let sa = trackedOpponentShots(for: goalie, in: game)
+                let ga = trackedGoalsAgainst(for: goalie, in: game)
+
+                guard sa > 0 || ga > 0 || game.goalie?.persistentModelID == goalie.persistentModelID else {
+                    return nil
+                }
+
+                let saves = max(sa - ga, 0)
                 let svPct: String = {
                     guard sa > 0 else { return ".000" }
-                    return String(format: "%.3f", Double(sv) / Double(sa))
+                    return String(format: "%.3f", Double(saves) / Double(sa))
                 }()
-                return [(
+
+                return (
                     number: goalie.number,
                     name: goalie.name,
                     gamesPlayed: 1,
                     shotsAgainst: sa,
                     goalsAgainst: ga,
-                    saves: sv,
+                    saves: saves,
                     savePercentageText: svPct
-                )]
+                )
             }
-            return []
-        }()
 
         lines.append("===== GAME REPORT =====")
         lines.append("Team,\(escaped(teamName))")
@@ -138,7 +149,7 @@ enum CSVExport {
             "\(goalsAgainst)",
             "\(shotsFor)",
             "\(shotsAgainstUsed)",
-            "\(trackedOpponentShots)",
+            "\(trackedOpponentShotsCount)",
             "\(totalPIM)",
             "\(ppGoals)",
             "\(shGoals)",
@@ -150,7 +161,22 @@ enum CSVExport {
         lines.append("Number,Name,GP,SA,GA,Saves,SV%")
 
         if goalies.isEmpty {
-            lines.append(",,0,0,0,0,.000")
+            let fallbackName = game.goalie?.name ?? ""
+            let fallbackNumber = game.goalie?.number ?? 0
+            let fallbackSaves = max(shotsAgainstUsed - goalsAgainst, 0)
+            let fallbackSvPct = shotsAgainstUsed > 0
+                ? String(format: "%.3f", Double(fallbackSaves) / Double(shotsAgainstUsed))
+                : ".000"
+
+            lines.append([
+                "\(fallbackNumber)",
+                escaped(fallbackName),
+                "1",
+                "\(shotsAgainstUsed)",
+                "\(goalsAgainst)",
+                "\(fallbackSaves)",
+                fallbackSvPct
+            ].joined(separator: ","))
         } else {
             for goalie in goalies {
                 lines.append([
@@ -319,6 +345,34 @@ enum CSVExport {
         }
     }
 
+    private static func activeGoalie(at timestamp: Date, for game: Game) -> Player? {
+        let sorted = game.events.sorted { $0.timestamp < $1.timestamp }
+        var active: Player? = nil
+
+        for event in sorted {
+            if event.timestamp > timestamp { break }
+            if event.type == .goalieChange {
+                active = event.primaryPlayer
+            }
+        }
+
+        return active
+    }
+
+    private static func trackedOpponentShots(for goalie: Player, in game: Game) -> Int {
+        game.events.filter {
+            $0.type == .opponentShot &&
+            activeGoalie(at: $0.timestamp, for: game)?.persistentModelID == goalie.persistentModelID
+        }.count
+    }
+
+    private static func trackedGoalsAgainst(for goalie: Player, in game: Game) -> Int {
+        game.events.filter {
+            $0.type == .goalAgainst &&
+            activeGoalie(at: $0.timestamp, for: game)?.persistentModelID == goalie.persistentModelID
+        }.count
+    }
+
     private static func eventTitle(for event: GameEvent) -> String {
         switch event.type {
         case .goalFor:
@@ -345,6 +399,12 @@ enum CSVExport {
             return "Shootout Attempt"
         case .shootoutAttemptAgainst:
             return "Opponent Shootout Attempt"
+        case .goalieChange:
+            let hasEarlierGoalieEvent = event.game?.events.contains {
+                $0.type == .goalieChange && $0.timestamp < event.timestamp
+            } ?? false
+
+            return hasEarlierGoalieEvent ? "Goalie Change" : "Starting Goalie"
         }
     }
 
@@ -427,6 +487,12 @@ enum CSVExport {
 
         case .shootoutAttemptAgainst:
             return event.didScore == true ? "Scored" : "Missed"
+
+        case .goalieChange:
+            if let goalie = event.primaryPlayer {
+                return "#\(goalie.number) \(goalie.name)"
+            }
+            return event.noteText ?? ""
         }
     }
 

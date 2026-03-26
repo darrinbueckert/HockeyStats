@@ -2,6 +2,122 @@ import Foundation
 import SwiftData
 
 enum HTMLExport {
+    static func makeGameNotesHTML(for game: Game) -> URL? {
+        let teamName = game.team?.name ?? "Team"
+        let fileName = "\(safeFileName(teamName))_vs_\(safeFileName(game.opponent))_Notes.html"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+
+        let notes = game.events
+            .filter { $0.type == .note }
+            .sorted { $0.timestamp < $1.timestamp }
+
+        var html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Game Notes</title>
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+                margin: 24px;
+                color: #111827;
+                background: #ffffff;
+            }
+            h1 {
+                margin-bottom: 6px;
+                font-size: 28px;
+            }
+            .meta {
+                margin-bottom: 20px;
+                line-height: 1.7;
+            }
+            .meta strong {
+                display: inline-block;
+                min-width: 90px;
+            }
+            .note-card {
+                border: 1px solid #d1d5db;
+                border-radius: 12px;
+                padding: 14px;
+                margin-bottom: 14px;
+                background: #f9fafb;
+            }
+            .note-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: baseline;
+                gap: 12px;
+                margin-bottom: 8px;
+            }
+            .note-player {
+                font-weight: 700;
+                font-size: 16px;
+            }
+            .note-time {
+                color: #6b7280;
+                font-size: 12px;
+                white-space: nowrap;
+            }
+            .empty {
+                color: #6b7280;
+                font-style: italic;
+                margin-top: 20px;
+            }
+            @media print {
+                body {
+                    margin: 12px;
+                }
+            }
+        </style>
+        </head>
+        <body>
+        <h1>Game Notes</h1>
+        <div class="meta">
+            <div><strong>Team:</strong> \(htmlEscape(teamName))</div>
+            <div><strong>Opponent:</strong> \(htmlEscape(game.opponent))</div>
+            <div><strong>Date:</strong> \(htmlEscape(game.date.formatted(date: .abbreviated, time: .shortened)))</div>
+            <div><strong>Generated:</strong> \(htmlEscape(Date().formatted(date: .abbreviated, time: .shortened)))</div>
+        </div>
+        """
+
+        if notes.isEmpty {
+            html += """
+            <div class="empty">No notes for this game.</div>
+            """
+        } else {
+            for event in notes {
+                let playerText = event.primaryPlayer.map { "#\($0.number) \($0.name)" } ?? "General Note"
+                let timeText = event.timestamp.formatted(date: .omitted, time: .standard)
+                let noteText = event.noteText ?? ""
+
+                html += """
+                <div class="note-card">
+                    <div class="note-header">
+                        <div class="note-player">\(htmlEscape(playerText))</div>
+                        <div class="note-time">\(htmlEscape(timeText))</div>
+                    </div>
+                    <div>\(htmlEscape(noteText))</div>
+                </div>
+                """
+            }
+        }
+
+        html += """
+        </body>
+        </html>
+        """
+
+        do {
+            try html.write(to: url, atomically: true, encoding: .utf8)
+            return url
+        } catch {
+            print("Failed to write game notes HTML: \(error)")
+            return nil
+        }
+    }
+    
     static func makeGameReportHTML(for game: Game) -> URL? {
         let teamName = game.team?.name ?? "Team"
         let fileName = "\(safeFileName(teamName))_vs_\(safeFileName(game.opponent))_Game_Report.html"
@@ -10,8 +126,8 @@ enum HTMLExport {
         let goalsFor = game.events.filter { $0.type == .goalFor }.count
         let goalsAgainst = game.events.filter { $0.type == .goalAgainst }.count
         let shotsFor = game.events.filter { $0.type == .shot }.count
-        let trackedOpponentShots = game.events.filter { $0.type == .opponentShot }.count
-        let shotsAgainstUsed = game.shotsAgainst > 0 ? game.shotsAgainst : trackedOpponentShots
+        let trackedOpponentShotsCount = game.events.filter { $0.type == .opponentShot }.count
+        let shotsAgainstUsed = game.shotsAgainst > 0 ? game.shotsAgainst : trackedOpponentShotsCount
         let totalPIM = game.events
             .filter { $0.type == .penalty }
             .compactMap(\.pimMinutes)
@@ -22,16 +138,39 @@ enum HTMLExport {
         let shootoutFor = game.events.filter { $0.type == .shootoutAttemptFor && $0.didScore == true }.count
         let shootoutAgainst = game.events.filter { $0.type == .shootoutAttemptAgainst && $0.didScore == true }.count
 
-        let goalieName = game.goalie.map { "#\($0.number) \($0.name)" } ?? "None selected"
-        let saves = max(shotsAgainstUsed - goalsAgainst, 0)
-        let savePct: String = {
-            guard shotsAgainstUsed > 0 else { return ".000" }
-            return String(format: "%.3f", Double(saves) / Double(shotsAgainstUsed))
-        }()
-
         let players = (game.team?.players ?? []).sorted {
             if $0.number == $1.number { return $0.name < $1.name }
             return $0.number < $1.number
+        }
+
+        let goaliePlayers = (game.team?.players ?? [])
+            .filter { $0.position == .goalie }
+            .sorted {
+                if $0.number == $1.number { return $0.name < $1.name }
+                return $0.number < $1.number
+            }
+
+        let goalieRows: [(name: String, sa: Int, ga: Int, saves: Int, svPct: String)] = goaliePlayers.compactMap { goalie in
+            let sa = trackedOpponentShots(for: goalie, in: game)
+            let ga = trackedGoalsAgainst(for: goalie, in: game)
+
+            guard sa > 0 || ga > 0 || game.goalie?.persistentModelID == goalie.persistentModelID else {
+                return nil
+            }
+
+            let saves = max(sa - ga, 0)
+            let svPct: String = {
+                guard sa > 0 else { return ".000" }
+                return String(format: "%.3f", Double(saves) / Double(sa))
+            }()
+
+            return (
+                name: "#\(goalie.number) \(goalie.name)",
+                sa: sa,
+                ga: ga,
+                saves: saves,
+                svPct: svPct
+            )
         }
 
         let notes = game.events
@@ -95,21 +234,6 @@ enum HTMLExport {
             .small {
                 color: #4b5563;
             }
-            .player-card {
-                border: 1px solid #d1d5db;
-                border-radius: 8px;
-                padding: 10px 12px;
-                margin-bottom: 10px;
-                background: #ffffff;
-            }
-            .player-name {
-                font-weight: 700;
-                margin-bottom: 4px;
-            }
-            .player-line {
-                color: #374151;
-                font-size: 14px;
-            }
             @media print {
                 body {
                     margin: 12px;
@@ -145,7 +269,7 @@ enum HTMLExport {
                 <td class="center">\(goalsAgainst)</td>
                 <td class="center">\(shotsFor)</td>
                 <td class="center">\(shotsAgainstUsed)</td>
-                <td class="center">\(trackedOpponentShots)</td>
+                <td class="center">\(trackedOpponentShotsCount)</td>
                 <td class="center">\(totalPIM)</td>
                 <td class="center">\(ppGoals)</td>
                 <td class="center">\(shGoals)</td>
@@ -154,7 +278,7 @@ enum HTMLExport {
             </tr>
         </table>
 
-        <h2>Goalie</h2>
+        <h2>Goalies</h2>
         <table>
             <tr>
                 <th>Goalie</th>
@@ -163,13 +287,39 @@ enum HTMLExport {
                 <th class="center">Saves</th>
                 <th class="center">SV%</th>
             </tr>
+        """
+
+        if goalieRows.isEmpty {
+            let fallbackName = game.goalie.map { "#\($0.number) \($0.name)" } ?? "None selected"
+            let fallbackSaves = max(shotsAgainstUsed - goalsAgainst, 0)
+            let fallbackSvPct = shotsAgainstUsed > 0
+                ? String(format: "%.3f", Double(fallbackSaves) / Double(shotsAgainstUsed))
+                : ".000"
+
+            html += """
             <tr>
-                <td>\(htmlEscape(goalieName))</td>
+                <td>\(htmlEscape(fallbackName))</td>
                 <td class="center">\(shotsAgainstUsed)</td>
                 <td class="center">\(goalsAgainst)</td>
-                <td class="center">\(saves)</td>
-                <td class="center">\(savePct)</td>
+                <td class="center">\(fallbackSaves)</td>
+                <td class="center">\(fallbackSvPct)</td>
             </tr>
+            """
+        } else {
+            for row in goalieRows {
+                html += """
+                <tr>
+                    <td>\(htmlEscape(row.name))</td>
+                    <td class="center">\(row.sa)</td>
+                    <td class="center">\(row.ga)</td>
+                    <td class="center">\(row.saves)</td>
+                    <td class="center">\(row.svPct)</td>
+                </tr>
+                """
+            }
+        }
+
+        html += """
         </table>
 
         <h2>Player Game Stats</h2>
@@ -526,6 +676,34 @@ enum HTMLExport {
         }
     }
 
+    private static func activeGoalie(at timestamp: Date, for game: Game) -> Player? {
+        let sorted = game.events.sorted { $0.timestamp < $1.timestamp }
+        var active: Player? = nil
+
+        for event in sorted {
+            if event.timestamp > timestamp { break }
+            if event.type == .goalieChange {
+                active = event.primaryPlayer
+            }
+        }
+
+        return active
+    }
+
+    private static func trackedOpponentShots(for goalie: Player, in game: Game) -> Int {
+        game.events.filter {
+            $0.type == .opponentShot &&
+            activeGoalie(at: $0.timestamp, for: game)?.persistentModelID == goalie.persistentModelID
+        }.count
+    }
+
+    private static func trackedGoalsAgainst(for goalie: Player, in game: Game) -> Int {
+        game.events.filter {
+            $0.type == .goalAgainst &&
+            activeGoalie(at: $0.timestamp, for: game)?.persistentModelID == goalie.persistentModelID
+        }.count
+    }
+
     private static func eventTitle(for event: GameEvent) -> String {
         switch event.type {
         case .goalFor: return "Goal"
@@ -540,6 +718,11 @@ enum HTMLExport {
         case .gameEnd: return "Game End"
         case .shootoutAttemptFor: return "Shootout Attempt"
         case .shootoutAttemptAgainst: return "Opponent Shootout Attempt"
+        case .goalieChange:
+            let hasEarlierGoalieEvent = event.game?.events.contains {
+                $0.type == .goalieChange && $0.timestamp < event.timestamp
+            } ?? false
+            return hasEarlierGoalieEvent ? "Goalie Change" : "Starting Goalie"
         }
     }
 
@@ -578,11 +761,18 @@ enum HTMLExport {
             return ""
         case .shootoutAttemptFor:
             var parts: [String] = []
-            if let player = event.primaryPlayer { parts.append("#\(player.number) \(player.name)") }
+            if let player = event.primaryPlayer {
+                parts.append("#\(player.number) \(player.name)")
+            }
             parts.append(event.didScore == true ? "Scored" : "Missed")
             return parts.joined(separator: " • ")
         case .shootoutAttemptAgainst:
             return event.didScore == true ? "Scored" : "Missed"
+        case .goalieChange:
+            if let goalie = event.primaryPlayer {
+                return "#\(goalie.number) \(goalie.name)"
+            }
+            return event.noteText ?? ""
         }
     }
 
