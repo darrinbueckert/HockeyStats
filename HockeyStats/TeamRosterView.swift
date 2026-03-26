@@ -8,13 +8,10 @@ struct TeamRosterView: View {
     let team: Team
 
     @State private var showingAddPlayer = false
-    @State private var showingAddGame = false
     @State private var showingEditTeam = false
     @State private var editingPlayer: Player?
     @State private var playerToDelete: Player?
     @State private var showingDeletePlayerAlert = false
-    @State private var gameToDelete: Game?
-    @State private var showingDeleteGameAlert = false
 
     var body: some View {
         List {
@@ -23,6 +20,44 @@ struct TeamRosterView: View {
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
+            }
+
+            Section {
+                NavigationLink(destination: TeamGamesView(team: team)) {
+                    HStack(spacing: 14) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(.secondarySystemGroupedBackground))
+                                .frame(width: 52, height: 52)
+
+                            Image(systemName: "sportscourt")
+                                .font(.title3)
+                                .foregroundStyle(.primary)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Games")
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+
+                            Text("\(team.games.count) total")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+                    }
+                    .padding(14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18)
+                            .fill(Color(.secondarySystemGroupedBackground))
+                    )
+                }
+                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+            } header: {
+                sectionHeader("Team")
             }
 
             Section {
@@ -52,31 +87,6 @@ struct TeamRosterView: View {
             } header: {
                 sectionHeader("Roster")
             }
-
-            Section {
-                if team.games.isEmpty {
-                    emptyStateRow(
-                        icon: "sportscourt",
-                        title: "No games yet",
-                        subtitle: "Tap the court button to add your first game."
-                    )
-                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                } else {
-                    ForEach(sortedGames) { game in
-                        NavigationLink(destination: GameDetailView(game: game)) {
-                            gameRow(for: game)
-                        }
-                        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                    }
-                    .onDelete(perform: deleteGames)
-                }
-            } header: {
-                sectionHeader("Games")
-            }
         }
         .listStyle(.insetGrouped)
         .navigationTitle(team.name)
@@ -92,9 +102,7 @@ struct TeamRosterView: View {
                     Image(systemName: "chart.line.uptrend.xyaxis")
                 }
 
-                Button {
-                    showingAddGame = true
-                } label: {
+                NavigationLink(destination: TeamGamesView(team: team)) {
                     Image(systemName: "sportscourt")
                 }
 
@@ -107,9 +115,6 @@ struct TeamRosterView: View {
         }
         .sheet(isPresented: $showingAddPlayer) {
             AddPlayerView(team: team)
-        }
-        .sheet(isPresented: $showingAddGame) {
-            AddGameView(team: team)
         }
         .sheet(isPresented: $showingEditTeam) {
             EditTeamView(team: team)
@@ -133,23 +138,6 @@ struct TeamRosterView: View {
             }
         } message: {
             Text("Deleting this player may affect existing game stats and cannot be undone.")
-        }
-        .alert(
-            gameDeleteTitle,
-            isPresented: $showingDeleteGameAlert
-        ) {
-            Button("Delete Game", role: .destructive) {
-                if let game = gameToDelete {
-                    context.delete(game)
-                }
-                gameToDelete = nil
-            }
-
-            Button("Cancel", role: .cancel) {
-                gameToDelete = nil
-            }
-        } message: {
-            Text("This will permanently delete the game and all events/stat data attached to it. This cannot be undone.")
         }
     }
 
@@ -249,41 +237,6 @@ struct TeamRosterView: View {
         )
     }
 
-    private func gameRow(for game: Game) -> some View {
-        HStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(.secondarySystemGroupedBackground))
-                    .frame(width: 52, height: 52)
-
-                Image(systemName: "sportscourt")
-                    .font(.title3)
-                    .foregroundStyle(.primary)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("vs \(game.opponent)")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-
-                Text(game.date.formatted(date: .abbreviated, time: .shortened))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-        }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(Color(.secondarySystemGroupedBackground))
-        )
-    }
-
     private func emptyStateRow(icon: String, title: String, subtitle: String) -> some View {
         VStack(spacing: 10) {
             Image(systemName: icon)
@@ -349,24 +302,11 @@ struct TeamRosterView: View {
         }
     }
 
-    private var sortedGames: [Game] {
-        team.games.sorted { $0.date > $1.date }
-    }
-
     private var playerDeleteTitle: String {
         guard let player = playerToDelete else {
             return "Delete Player?"
         }
         return "Delete #\(player.number) \(player.name)?"
-    }
-
-    private var gameDeleteTitle: String {
-        guard let game = gameToDelete else {
-            return "Delete Game?"
-        }
-
-        let dateText = game.date.formatted(date: .abbreviated, time: .omitted)
-        return "Delete game vs \(game.opponent) on \(dateText)?"
     }
 
     private func sortOrder(for position: PlayerPosition) -> Int {
@@ -382,11 +322,5 @@ struct TeamRosterView: View {
         guard let index = offsets.first else { return }
         playerToDelete = sortedPlayers[index]
         showingDeletePlayerAlert = true
-    }
-
-    private func deleteGames(at offsets: IndexSet) {
-        guard let index = offsets.first else { return }
-        gameToDelete = sortedGames[index]
-        showingDeleteGameAlert = true
     }
 }
