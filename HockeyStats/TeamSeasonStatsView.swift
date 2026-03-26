@@ -44,6 +44,7 @@ struct TeamSeasonStatsView: View {
     let team: Team
 
     @State private var exportURL: URL?
+    @State private var showingShareSheet = false
 
     private var skaters: [Player] {
         team.players
@@ -169,17 +170,28 @@ struct TeamSeasonStatsView: View {
         .navigationTitle("Season Stats")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                if let exportURL {
-                    ShareLink(item: exportURL) {
-                        Image(systemName: "square.and.arrow.up")
+                Menu {
+                    Button("Export CSV") {
+                        if let url = CSVExport.makeSeasonStatsCSV(for: team) {
+                            exportURL = url
+                            showingShareSheet = true
+                        }
                     }
-                } else {
-                    Button {
-                        exportURL = CSVExport.makeSeasonStatsCSV(for: team)
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
+
+                    Button("Export HTML Report") {
+                        if let url = HTMLExport.makeSeasonReportHTML(for: team) {
+                            exportURL = url
+                            showingShareSheet = true
+                        }
                     }
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
                 }
+            }
+        }
+        .sheet(isPresented: $showingShareSheet) {
+            if let exportURL {
+                ShareSheet(items: [exportURL])
             }
         }
     }
@@ -203,10 +215,8 @@ struct TeamSeasonStatsView: View {
         let assists = team.games.reduce(0) { total, game in
             total + game.events.filter {
                 $0.type == .goalFor &&
-                (
-                    $0.secondaryPlayer?.persistentModelID == player.persistentModelID ||
-                    $0.tertiaryPlayer?.persistentModelID == player.persistentModelID
-                )
+                ($0.secondaryPlayer?.persistentModelID == player.persistentModelID ||
+                 $0.tertiaryPlayer?.persistentModelID == player.persistentModelID)
             }.count
         }
 

@@ -13,23 +13,11 @@ struct GamePlayerStats: Identifiable {
     let ppGoals: Int
     let shGoals: Int
 
-    var points: Int {
-        goals + assists
-    }
-
-    var plusMinus: Int {
-        plus - minus
-    }
+    var points: Int { goals + assists }
+    var plusMinus: Int { plus - minus }
 
     var hasStats: Bool {
-        goals > 0 ||
-        assists > 0 ||
-        shots > 0 ||
-        pim > 0 ||
-        plus > 0 ||
-        minus > 0 ||
-        ppGoals > 0 ||
-        shGoals > 0
+        goals > 0 || assists > 0 || shots > 0 || pim > 0 || plus > 0 || minus > 0 || ppGoals > 0 || shGoals > 0
     }
 }
 
@@ -37,12 +25,11 @@ struct GameStatsView: View {
     let game: Game
 
     @State private var exportURL: URL?
+    @State private var showingShareSheet = false
 
     private var sortedPlayers: [Player] {
         (game.team?.players ?? []).sorted {
-            if $0.number == $1.number {
-                return $0.name < $1.name
-            }
+            if $0.number == $1.number { return $0.name < $1.name }
             return $0.number < $1.number
         }
     }
@@ -178,17 +165,28 @@ struct GameStatsView: View {
         .navigationTitle("Game Stats")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                if let exportURL {
-                    ShareLink(item: exportURL) {
-                        Image(systemName: "square.and.arrow.up")
+                Menu {
+                    Button("Export CSV") {
+                        if let url = CSVExport.makeGameStatsCSV(for: game) {
+                            exportURL = url
+                            showingShareSheet = true
+                        }
                     }
-                } else {
-                    Button {
-                        exportURL = CSVExport.makeGameStatsCSV(for: game)
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
+
+                    Button("Export HTML Report") {
+                        if let url = HTMLExport.makeGameReportHTML(for: game) {
+                            exportURL = url
+                            showingShareSheet = true
+                        }
                     }
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
                 }
+            }
+        }
+        .sheet(isPresented: $showingShareSheet) {
+            if let exportURL {
+                ShareSheet(items: [exportURL])
             }
         }
     }
@@ -203,10 +201,8 @@ struct GameStatsView: View {
     private func assistCount(for player: Player) -> Int {
         game.events.filter {
             $0.type == .goalFor &&
-            (
-                $0.secondaryPlayer?.persistentModelID == player.persistentModelID ||
-                $0.tertiaryPlayer?.persistentModelID == player.persistentModelID
-            )
+            ($0.secondaryPlayer?.persistentModelID == player.persistentModelID ||
+             $0.tertiaryPlayer?.persistentModelID == player.persistentModelID)
         }.count
     }
 
