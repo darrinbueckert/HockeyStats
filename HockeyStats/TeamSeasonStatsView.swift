@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 struct SeasonSkaterStats: Identifiable {
     let id = UUID()
@@ -25,9 +26,7 @@ struct SeasonGoalieStats: Identifiable {
     let shotsAgainst: Int
     let goalsAgainst: Int
 
-    var saves: Int {
-        max(shotsAgainst - goalsAgainst, 0)
-    }
+    var saves: Int { max(shotsAgainst - goalsAgainst, 0) }
 
     var savePercentage: Double {
         guard shotsAgainst > 0 else { return 0 }
@@ -45,6 +44,8 @@ struct TeamSeasonStatsView: View {
 
     @State private var exportURL: URL?
     @State private var showingShareSheet = false
+    @State private var htmlDocument: ExportTextDocument?
+    @State private var showingHTMLExporter = false
 
     private var skaters: [Player] {
         team.players
@@ -59,6 +60,7 @@ struct TeamSeasonStatsView: View {
                     }
                     return l.goals > r.goals
                 }
+
                 return l.points > r.points
             }
     }
@@ -73,8 +75,15 @@ struct TeamSeasonStatsView: View {
                 if l.savePercentage == r.savePercentage {
                     return lhs.number < rhs.number
                 }
+
                 return l.savePercentage > r.savePercentage
             }
+    }
+
+    private var seasonReportFilename: String {
+        let teamName = sanitizedFilenamePart(team.name)
+        let dateText = Date().formatted(.iso8601.year().month().day())
+        return "\(teamName)_SeasonReport_\(dateText)"
     }
 
     var body: some View {
@@ -178,10 +187,11 @@ struct TeamSeasonStatsView: View {
                         }
                     }
 
-                    Button("Export HTML Report") {
-                        if let url = HTMLExport.makeSeasonReportHTML(for: team) {
-                            exportURL = url
-                            showingShareSheet = true
+                    Button("Save HTML Report") {
+                        if let url = HTMLExport.makeSeasonReportHTML(for: team),
+                           let html = try? String(contentsOf: url, encoding: .utf8) {
+                            htmlDocument = ExportTextDocument(text: html)
+                            showingHTMLExporter = true
                         }
                     }
                 } label: {
@@ -194,6 +204,27 @@ struct TeamSeasonStatsView: View {
                 ShareSheet(items: [exportURL])
             }
         }
+        .fileExporter(
+            isPresented: $showingHTMLExporter,
+            document: htmlDocument,
+            contentType: .html,
+            defaultFilename: seasonReportFilename
+        ) { result in
+            switch result {
+            case .success(let url):
+                print("Saved HTML to: \(url)")
+            case .failure(let error):
+                print("HTML export failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func sanitizedFilenamePart(_ text: String) -> String {
+        let invalidCharacters = CharacterSet(charactersIn: "\\/:*?\"<>|")
+        let cleaned = text.components(separatedBy: invalidCharacters).joined(separator: "")
+        return cleaned
+            .replacingOccurrences(of: " ", with: "_")
+            .replacingOccurrences(of: "&", with: "and")
     }
 
     private func skaterStats(for player: Player) -> SeasonSkaterStats {
@@ -287,9 +318,7 @@ struct TeamSeasonStatsView: View {
         }
 
         let shotsAgainst = goalieGames.reduce(0) { total, game in
-            total + (game.shotsAgainst > 0
-                ? game.shotsAgainst
-                : game.events.filter { $0.type == .opponentShot }.count)
+            total + (game.shotsAgainst > 0 ? game.shotsAgainst : game.events.filter { $0.type == .opponentShot }.count)
         }
 
         let goalsAgainst = goalieGames.reduce(0) { total, game in

@@ -8,6 +8,7 @@ struct TeamRosterView: View {
 
     @State private var showingAddPlayer = false
     @State private var showingAddGame = false
+    @State private var editingPlayer: Player?
 
     var body: some View {
         List {
@@ -17,14 +18,28 @@ struct TeamRosterView: View {
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(sortedPlayers) { player in
-                        HStack {
-                            Text("#\(player.number)")
-                                .bold()
-                            Text(player.name)
-                            Spacer()
-                            Text(player.position.shortLabel)
-                                .foregroundStyle(.secondary)
+                        Button {
+                            editingPlayer = player
+                        } label: {
+                            HStack {
+                                Text("#\(player.number)")
+                                    .bold()
+                                    .foregroundStyle(.primary)
+
+                                Text(player.name)
+                                    .foregroundStyle(.primary)
+
+                                Spacer()
+
+                                Text(player.position.shortLabel)
+                                    .foregroundStyle(.secondary)
+
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
+                        .buttonStyle(.plain)
                     }
                     .onDelete(perform: deletePlayers)
                 }
@@ -76,6 +91,9 @@ struct TeamRosterView: View {
         }
         .sheet(isPresented: $showingAddGame) {
             AddGameView(team: team)
+        }
+        .sheet(item: $editingPlayer) { player in
+            EditPlayerView(player: player)
         }
     }
 

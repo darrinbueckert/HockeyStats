@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 struct GamePlayerStats: Identifiable {
     let id = UUID()
@@ -26,6 +27,8 @@ struct GameStatsView: View {
 
     @State private var exportURL: URL?
     @State private var showingShareSheet = false
+    @State private var htmlDocument: ExportTextDocument?
+    @State private var showingHTMLExporter = false
 
     private var sortedPlayers: [Player] {
         (game.team?.players ?? []).sorted {
@@ -73,6 +76,13 @@ struct GameStatsView: View {
 
     private var goalsAgainst: Int {
         game.events.filter { $0.type == .goalAgainst }.count
+    }
+
+    private var gameReportFilename: String {
+        let teamName = sanitizedFilenamePart(game.team?.name ?? "Team")
+        let opponentName = sanitizedFilenamePart(game.opponent)
+        let dateText = game.date.formatted(.iso8601.year().month().day())
+        return "\(teamName)_vs_\(opponentName)_\(dateText)"
     }
 
     var body: some View {
@@ -173,10 +183,11 @@ struct GameStatsView: View {
                         }
                     }
 
-                    Button("Export HTML Report") {
-                        if let url = HTMLExport.makeGameReportHTML(for: game) {
-                            exportURL = url
-                            showingShareSheet = true
+                    Button("Save HTML Report") {
+                        if let url = HTMLExport.makeGameReportHTML(for: game),
+                           let html = try? String(contentsOf: url, encoding: .utf8) {
+                            htmlDocument = ExportTextDocument(text: html)
+                            showingHTMLExporter = true
                         }
                     }
                 } label: {
@@ -189,6 +200,27 @@ struct GameStatsView: View {
                 ShareSheet(items: [exportURL])
             }
         }
+        .fileExporter(
+            isPresented: $showingHTMLExporter,
+            document: htmlDocument,
+            contentType: .html,
+            defaultFilename: gameReportFilename
+        ) { result in
+            switch result {
+            case .success(let url):
+                print("Saved HTML to: \(url)")
+            case .failure(let error):
+                print("HTML export failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func sanitizedFilenamePart(_ text: String) -> String {
+        let invalidCharacters = CharacterSet(charactersIn: "\\/:*?\"<>|")
+        let cleaned = text.components(separatedBy: invalidCharacters).joined(separator: "")
+        return cleaned
+            .replacingOccurrences(of: " ", with: "_")
+            .replacingOccurrences(of: "&", with: "and")
     }
 
     private func goalCount(for player: Player) -> Int {
