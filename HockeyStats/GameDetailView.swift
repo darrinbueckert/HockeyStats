@@ -590,6 +590,14 @@ struct GameDetailView: View {
     private func endGame() {
         guard game.isGameStarted, !game.isGameEnded else { return }
 
+        // Calculate final score from events
+        let teamGoals = game.events.filter { $0.type == .goalFor }.count
+        let opponentGoals = game.events.filter { $0.type == .goalAgainst }.count
+
+        // Save final score
+        game.teamScore = teamGoals
+        game.opponentScore = opponentGoals
+
         game.isGameEnded = true
 
         let event = GameEvent(type: .gameEnd, game: game)

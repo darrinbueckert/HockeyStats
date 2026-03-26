@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import UIKit
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @Environment(\.modelContext) private var context
@@ -9,6 +10,13 @@ struct ContentView: View {
     @State private var showingAddTeam = false
     @State private var teamToDelete: Team?
     @State private var showingDeleteTeamAlert = false
+
+    @State private var backupDocument: BackupDocument?
+    @State private var showingBackupExporter = false
+    @State private var showingBackupImporter = false
+
+    @State private var importMessage = ""
+    @State private var showingImportMessage = false
 
     var body: some View {
         NavigationStack {
@@ -59,7 +67,19 @@ struct ContentView: View {
             }
             .navigationTitle("Teams")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Menu {
+                        Button("Export Backup") {
+                            exportBackup()
+                        }
+
+                        Button("Import Backup") {
+                            showingBackupImporter = true
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                    }
+
                     Button {
                         showingAddTeam = true
                     } label: {
@@ -69,6 +89,49 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showingAddTeam) {
                 AddTeamView()
+            }
+            .fileExporter(
+                isPresented: $showingBackupExporter,
+                document: backupDocument,
+                contentType: .json,
+                defaultFilename: backupFilename
+            ) { result in
+                switch result {
+                case .success(let url):
+                    print("Backup saved to: \(url)")
+                case .failure(let error):
+                    importMessage = "Backup export failed: \(error.localizedDescription)"
+                    showingImportMessage = true
+                }
+            }
+            .fileImporter(
+                isPresented: $showingBackupImporter,
+                allowedContentTypes: [.json]
+            ) { result in
+                switch result {
+                case .success(let url):
+                    let didStartAccessing = url.startAccessingSecurityScopedResource()
+
+                    defer {
+                        if didStartAccessing {
+                            url.stopAccessingSecurityScopedResource()
+                        }
+                    }
+
+                    do {
+                        let data = try Data(contentsOf: url)
+                        try BackupManager.importBackup(from: data, into: context)
+                        importMessage = "Backup imported successfully."
+                        showingImportMessage = true
+                    } catch {
+                        importMessage = "Backup import failed: \(error.localizedDescription)"
+                        showingImportMessage = true
+                    }
+
+                case .failure(let error):
+                    importMessage = "Backup import failed: \(error.localizedDescription)"
+                    showingImportMessage = true
+                }
             }
             .alert(
                 teamDeleteTitle,
@@ -87,6 +150,11 @@ struct ContentView: View {
             } message: {
                 Text("This will permanently delete the team, roster, games, and all related stats. This cannot be undone.")
             }
+            .alert("Backup", isPresented: $showingImportMessage) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(importMessage)
+            }
         }
     }
 
@@ -95,6 +163,22 @@ struct ContentView: View {
             return "Delete Team?"
         }
         return "Delete \(team.name)?"
+    }
+
+    private var backupFilename: String {
+        let dateText = Date().formatted(.iso8601.year().month().day())
+        return "HockeyStatsBackup_\(dateText)"
+    }
+
+    private func exportBackup() {
+        do {
+            let data = try BackupManager.makeBackup(from: teams)
+            backupDocument = BackupDocument(data: data)
+            showingBackupExporter = true
+        } catch {
+            importMessage = "Backup export failed: \(error.localizedDescription)"
+            showingImportMessage = true
+        }
     }
 
     private func deleteTeams(at offsets: IndexSet) {

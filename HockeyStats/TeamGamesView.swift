@@ -8,6 +8,7 @@ struct TeamGamesView: View {
     let team: Team
 
     @State private var showingAddGame = false
+    @State private var editingGame: Game?
     @State private var gameToDelete: Game?
     @State private var showingDeleteGameAlert = false
 
@@ -34,8 +35,22 @@ struct TeamGamesView: View {
                         .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button {
+                                editingGame = game
+                            } label: {
+                                Label("Edit", systemImage: "pencil")
+                            }
+                            .tint(.blue)
+
+                            Button(role: .destructive) {
+                                gameToDelete = game
+                                showingDeleteGameAlert = true
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                     }
-                    .onDelete(perform: deleteGames)
                 }
             } header: {
                 sectionHeader("Games")
@@ -54,6 +69,9 @@ struct TeamGamesView: View {
         }
         .sheet(isPresented: $showingAddGame) {
             AddGameView(team: team)
+        }
+        .sheet(item: $editingGame) { game in
+            EditGameView(game: game)
         }
         .alert(
             gameDeleteTitle,
@@ -137,6 +155,19 @@ struct TeamGamesView: View {
 
             Spacer()
 
+            if let result = resultLetter(for: game) {
+                Text(result)
+                    .font(.caption)
+                    .fontWeight(.bold)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(Color(.tertiarySystemGroupedBackground))
+                    )
+                    .foregroundStyle(.primary)
+            }
+
             if let teamScore = game.teamScore,
                let opponentScore = game.opponentScore {
                 Text("\(teamScore)-\(opponentScore)")
@@ -216,6 +247,17 @@ struct TeamGamesView: View {
             )
     }
 
+    private func resultLetter(for game: Game) -> String? {
+        guard let teamScore = game.teamScore,
+              let opponentScore = game.opponentScore else {
+            return nil
+        }
+
+        if teamScore > opponentScore { return "W" }
+        if teamScore < opponentScore { return "L" }
+        return "T"
+    }
+
     private var sortedGames: [Game] {
         team.games.sorted { $0.date > $1.date }
     }
@@ -250,11 +292,5 @@ struct TeamGamesView: View {
 
         let dateText = game.date.formatted(date: .abbreviated, time: .omitted)
         return "Delete game vs \(game.opponent) on \(dateText)?"
-    }
-
-    private func deleteGames(at offsets: IndexSet) {
-        guard let index = offsets.first else { return }
-        gameToDelete = sortedGames[index]
-        showingDeleteGameAlert = true
     }
 }
