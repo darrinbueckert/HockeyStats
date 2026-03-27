@@ -5,6 +5,7 @@ import SwiftData
 class Game {
     var date: Date
     var opponent: String
+    var isHomeGame: Bool
     var team: Team?
 
     @Relationship(deleteRule: .cascade)
@@ -23,12 +24,14 @@ class Game {
     init(
         date: Date = Date(),
         opponent: String,
+        isHomeGame: Bool = true,
         team: Team? = nil,
         teamScore: Int? = nil,
         opponentScore: Int? = nil
     ) {
         self.date = date
         self.opponent = opponent
+        self.isHomeGame = isHomeGame
         self.team = team
         self.currentPeriodNumber = nil
         self.isGameStarted = false

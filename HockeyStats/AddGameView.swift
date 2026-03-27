@@ -9,6 +9,7 @@ struct AddGameView: View {
 
     @State private var opponent = ""
     @State private var date = Date()
+    @State private var isHomeGame = true
     @State private var teamScore = ""
     @State private var opponentScore = ""
 
@@ -19,11 +20,22 @@ struct AddGameView: View {
                     TextField("Opponent", text: $opponent)
                     DatePicker("Date", selection: $date)
 
+                    Picker("Location", selection: $isHomeGame) {
+                        Text("Home").tag(true)
+                        Text("Away").tag(false)
+                    }
+                    .pickerStyle(.segmented)
+
                     TextField("Your Score (optional)", text: $teamScore)
                         .keyboardType(.numberPad)
 
                     TextField("Opponent Score (optional)", text: $opponentScore)
                         .keyboardType(.numberPad)
+                }
+
+                Section("Preview") {
+                    Text(matchupText)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section("Team") {
@@ -62,6 +74,7 @@ struct AddGameView: View {
                         let game = Game(
                             date: date,
                             opponent: trimmedOpponent,
+                            isHomeGame: isHomeGame,
                             team: team,
                             teamScore: finalTeamScore,
                             opponentScore: finalOpponentScore
@@ -75,5 +88,9 @@ struct AddGameView: View {
                 }
             }
         }
+    }
+
+    private var matchupText: String {
+        isHomeGame ? "vs \(opponent.isEmpty ? "Opponent" : opponent)" : "@ \(opponent.isEmpty ? "Opponent" : opponent)"
     }
 }

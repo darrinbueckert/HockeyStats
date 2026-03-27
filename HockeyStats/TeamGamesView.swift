@@ -139,13 +139,13 @@ struct TeamGamesView: View {
                     .fill(Color(.secondarySystemGroupedBackground))
                     .frame(width: 52, height: 52)
 
-                Image(systemName: "sportscourt")
+                Image(systemName: game.isHomeGame ? "house.fill" : "airplane")
                     .font(.title3)
                     .foregroundStyle(.primary)
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("vs \(game.opponent)")
+                Text(matchupText(for: game))
                     .font(.headline)
 
                 Text(game.date.formatted(date: .abbreviated, time: .shortened))
@@ -155,7 +155,7 @@ struct TeamGamesView: View {
 
             Spacer()
 
-            if let result = resultLetter(for: game) {
+            if let result = resultBadgeText(for: game) {
                 Text(result)
                     .font(.caption)
                     .fontWeight(.bold)
@@ -247,15 +247,31 @@ struct TeamGamesView: View {
             )
     }
 
-    private func resultLetter(for game: Game) -> String? {
+    private func matchupText(for game: Game) -> String {
+        game.isHomeGame ? "vs \(game.opponent)" : "@ \(game.opponent)"
+    }
+
+    private func resultBadgeText(for game: Game) -> String? {
         guard let teamScore = game.teamScore,
               let opponentScore = game.opponentScore else {
             return nil
         }
 
-        if teamScore > opponentScore { return "W" }
-        if teamScore < opponentScore { return "L" }
-        return "T"
+        if teamScore == opponentScore {
+            return "T"
+        }
+
+        let win = teamScore > opponentScore
+
+        if game.isShootout {
+            return win ? "SOW" : "SOL"
+        }
+
+        if let period = game.currentPeriodNumber, period > 3 {
+            return win ? "OTW" : "OTL"
+        }
+
+        return win ? "W" : "L"
     }
 
     private var sortedGames: [Game] {
@@ -291,6 +307,6 @@ struct TeamGamesView: View {
         }
 
         let dateText = game.date.formatted(date: .abbreviated, time: .omitted)
-        return "Delete game vs \(game.opponent) on \(dateText)?"
+        return "Delete \(matchupText(for: game)) on \(dateText)?"
     }
 }

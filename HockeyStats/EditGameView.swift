@@ -7,6 +7,7 @@ struct EditGameView: View {
 
     @State private var opponent: String
     @State private var date: Date
+    @State private var isHomeGame: Bool
     @State private var teamScore: String
     @State private var opponentScore: String
 
@@ -14,6 +15,7 @@ struct EditGameView: View {
         self.game = game
         _opponent = State(initialValue: game.opponent)
         _date = State(initialValue: game.date)
+        _isHomeGame = State(initialValue: game.isHomeGame)
         _teamScore = State(initialValue: game.teamScore.map(String.init) ?? "")
         _opponentScore = State(initialValue: game.opponentScore.map(String.init) ?? "")
     }
@@ -25,11 +27,22 @@ struct EditGameView: View {
                     TextField("Opponent", text: $opponent)
                     DatePicker("Date", selection: $date)
 
+                    Picker("Location", selection: $isHomeGame) {
+                        Text("Home").tag(true)
+                        Text("Away").tag(false)
+                    }
+                    .pickerStyle(.segmented)
+
                     TextField("Your Score (optional)", text: $teamScore)
                         .keyboardType(.numberPad)
 
                     TextField("Opponent Score (optional)", text: $opponentScore)
                         .keyboardType(.numberPad)
+                }
+
+                Section("Preview") {
+                    Text(matchupText)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section("Team") {
@@ -67,6 +80,7 @@ struct EditGameView: View {
 
                         game.opponent = trimmedOpponent
                         game.date = date
+                        game.isHomeGame = isHomeGame
                         game.teamScore = finalTeamScore
                         game.opponentScore = finalOpponentScore
 
@@ -76,5 +90,9 @@ struct EditGameView: View {
                 }
             }
         }
+    }
+
+    private var matchupText: String {
+        isHomeGame ? "vs \(opponent.isEmpty ? "Opponent" : opponent)" : "@ \(opponent.isEmpty ? "Opponent" : opponent)"
     }
 }

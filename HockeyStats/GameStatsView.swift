@@ -192,7 +192,7 @@ struct GameStatsView: View {
 
                     HStack(alignment: .firstTextBaseline) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("vs \(game.opponent)")
+                            Text(matchupText)
                                 .font(.title3)
                                 .fontWeight(.semibold)
 
@@ -203,10 +203,22 @@ struct GameStatsView: View {
 
                         Spacer()
 
-                        VStack(alignment: .trailing, spacing: 2) {
+                        VStack(alignment: .trailing, spacing: 4) {
                             Text("\(goalsFor) - \(goalsAgainst)")
                                 .font(.title)
                                 .fontWeight(.bold)
+
+                            if let badge = resultBadgeText {
+                                Text(badge)
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 4)
+                                    .background(
+                                        Capsule()
+                                            .fill(Color(.tertiarySystemGroupedBackground))
+                                    )
+                            }
 
                             Text(statusText)
                                 .font(.caption)
@@ -433,6 +445,33 @@ struct GameStatsView: View {
                 print("HTML export failed: \(error.localizedDescription)")
             }
         }
+    }
+
+    private var matchupText: String {
+        game.isHomeGame ? "vs \(game.opponent)" : "@ \(game.opponent)"
+    }
+
+    private var resultBadgeText: String? {
+        guard let teamScore = game.teamScore,
+              let opponentScore = game.opponentScore else {
+            return nil
+        }
+
+        if teamScore == opponentScore {
+            return "T"
+        }
+
+        let win = teamScore > opponentScore
+
+        if game.isShootout {
+            return win ? "SOW" : "SOL"
+        }
+
+        if let period = game.currentPeriodNumber, period > 3 {
+            return win ? "OTW" : "OTL"
+        }
+
+        return win ? "W" : "L"
     }
 
     private var statusText: String {

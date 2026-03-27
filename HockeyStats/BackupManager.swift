@@ -41,6 +41,7 @@ enum BackupManager {
                     id: UUID().uuidString,
                     date: game.date,
                     opponent: game.opponent,
+                    isHomeGame: game.isHomeGame,
                     currentPeriodNumber: game.currentPeriodNumber,
                     isGameStarted: game.isGameStarted,
                     isGameEnded: game.isGameEnded,
@@ -105,6 +106,7 @@ enum BackupManager {
                 let game = Game(
                     date: backupGame.date,
                     opponent: backupGame.opponent,
+                    isHomeGame: backupGame.isHomeGame,
                     team: team,
                     teamScore: backupGame.teamScore,
                     opponentScore: backupGame.opponentScore
