@@ -37,11 +37,18 @@ struct GameGoalieStats: Identifiable {
     }
 }
 
+struct ScoringSummaryItem: Identifiable {
+    let id = UUID()
+    let event: GameEvent
+    let scorer: Player?
+    let assist1: Player?
+    let assist2: Player?
+    let strength: GoalStrength?
+}
+
 struct GameStatsView: View {
     let game: Game
 
-    @State private var csvDocument: ExportCSVDocument?
-    @State private var showingCSVExporter = false
     @State private var htmlDocument: ExportTextDocument?
     @State private var showingHTMLExporter = false
 
@@ -53,19 +60,30 @@ struct GameStatsView: View {
     }
 
     private var playerStats: [GamePlayerStats] {
-        sortedPlayers.map { player in
-            GamePlayerStats(
-                player: player,
-                goals: goalCount(for: player),
-                assists: assistCount(for: player),
-                shots: shotCount(for: player),
-                pim: pimCount(for: player),
-                plus: plusCount(for: player),
-                minus: minusCount(for: player),
-                ppGoals: ppGoalCount(for: player),
-                shGoals: shGoalCount(for: player)
-            )
-        }
+        sortedPlayers
+            .map { player in
+                GamePlayerStats(
+                    player: player,
+                    goals: goalCount(for: player),
+                    assists: assistCount(for: player),
+                    shots: shotCount(for: player),
+                    pim: pimCount(for: player),
+                    plus: plusCount(for: player),
+                    minus: minusCount(for: player),
+                    ppGoals: ppGoalCount(for: player),
+                    shGoals: shGoalCount(for: player)
+                )
+            }
+            .filter(\.hasStats)
+            .sorted { lhs, rhs in
+                if lhs.points == rhs.points {
+                    if lhs.goals == rhs.goals {
+                        return lhs.player.number < rhs.player.number
+                    }
+                    return lhs.goals > rhs.goals
+                }
+                return lhs.points > rhs.points
+            }
     }
 
     private var goaliePlayers: [Player] {
@@ -94,25 +112,162 @@ struct GameStatsView: View {
         }
     }
 
-    private var shotsAgainstUsed: Int {
-        game.shotsAgainst > 0 ? game.shotsAgainst : game.events.filter { $0.type == .opponentShot }.count
+    private var scoringSummary: [ScoringSummaryItem] {
+        game.events
+            .filter { $0.type == .goalFor }
+            .sorted { $0.timestamp < $1.timestamp }
+            .map {
+                ScoringSummaryItem(
+                    event: $0,
+                    scorer: $0.primaryPlayer,
+                    assist1: $0.secondaryPlayer,
+                    assist2: $0.tertiaryPlayer,
+                    strength: $0.strength
+                )
+            }
+    }
+
+    private var noteEvents: [GameEvent] {
+        game.events
+            .filter { $0.type == .note }
+            .sorted { $0.timestamp > $1.timestamp }
+    }
+
+    private var goalsFor: Int {
+        game.events.filter { $0.type == .goalFor }.count
     }
 
     private var goalsAgainst: Int {
         game.events.filter { $0.type == .goalAgainst }.count
     }
 
+    private var shotsFor: Int {
+        game.events.filter { $0.type == .shot }.count
+    }
+
+    private var trackedOpponentShotsCount: Int {
+        game.events.filter { $0.type == .opponentShot }.count
+    }
+
+    private var shotsAgainstUsed: Int {
+        game.shotsAgainst > 0 ? game.shotsAgainst : trackedOpponentShotsCount
+    }
+
+    private var totalPIM: Int {
+        game.events
+            .filter { $0.type == .penalty }
+            .compactMap(\.pimMinutes)
+            .reduce(0, +)
+    }
+
+    private var powerPlayGoals: Int {
+        game.events.filter { $0.type == .goalFor && $0.strength == .powerPlay }.count
+    }
+
+    private var shortHandedGoals: Int {
+        game.events.filter { $0.type == .goalFor && $0.strength == .shortHanded }.count
+    }
+
+    private var shootoutForGoals: Int {
+        game.events.filter { $0.type == .shootoutAttemptFor && $0.didScore == true }.count
+    }
+
+    private var shootoutAgainstGoals: Int {
+        game.events.filter { $0.type == .shootoutAttemptAgainst && $0.didScore == true }.count
+    }
+
+    private var gameReportFilename: String {
+        let teamName = sanitizedFilenamePart(game.team?.name ?? "Team")
+        let opponentName = sanitizedFilenamePart(game.opponent)
+        let dateText = game.date.formatted(.iso8601.year().month().day())
+        return "\(teamName)_vs_\(opponentName)_\(dateText)"
+    }
+
     var body: some View {
         List {
             Section {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 10) {
                     Text(game.team?.name ?? "Team")
                         .font(.headline)
-                    Text("vs \(game.opponent)")
-                        .font(.title3)
-                    Text(game.date.formatted(date: .abbreviated, time: .shortened))
-                        .font(.caption)
+
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("vs \(game.opponent)")
+                                .font(.title3)
+                                .fontWeight(.semibold)
+
+                            Text(game.date.formatted(date: .abbreviated, time: .shortened))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("\(goalsFor) - \(goalsAgainst)")
+                                .font(.title)
+                                .fontWeight(.bold)
+
+                            Text(statusText)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+
+            Section("Summary") {
+                summaryRow("Shots", "\(shotsFor) - \(shotsAgainstUsed)")
+                summaryRow("Tracked Opponent Shots", "\(trackedOpponentShotsCount)")
+                summaryRow("PIM", "\(totalPIM)")
+                summaryRow("Power-Play Goals", "\(powerPlayGoals)")
+                summaryRow("Short-Handed Goals", "\(shortHandedGoals)")
+                if game.events.contains(where: { $0.type == .shootoutAttemptFor || $0.type == .shootoutAttemptAgainst }) {
+                    summaryRow("Shootout", "\(shootoutForGoals) - \(shootoutAgainstGoals)")
+                }
+            }
+
+            Section("Scoring Summary") {
+                if scoringSummary.isEmpty {
+                    Text("No goals recorded")
                         .foregroundStyle(.secondary)
+                } else {
+                    ForEach(scoringSummary) { item in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text(item.scorer.map { "#\($0.number) \($0.name)" } ?? "Unknown Scorer")
+                                    .font(.headline)
+
+                                Spacer()
+
+                                Text(periodLabel(for: item.event.periodNumber))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            HStack {
+                                Text(item.event.timestamp.formatted(date: .omitted, time: .standard))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+
+                                Spacer()
+
+                                if let strength = item.strength {
+                                    Text(strength.label)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+
+                            let assists = assistText(assist1: item.assist1, assist2: item.assist2)
+                            if !assists.isEmpty {
+                                Text(assists)
+                                    .font(.subheadline)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
                 }
             }
 
@@ -177,7 +332,7 @@ struct GameStatsView: View {
             }
 
             Section("Player Stats") {
-                if playerStats.filter(\.hasStats).isEmpty {
+                if playerStats.isEmpty {
                     Text("No player stats yet")
                         .foregroundStyle(.secondary)
                 } else {
@@ -211,12 +366,49 @@ struct GameStatsView: View {
                     }
                 }
             }
+
+            Section("Notes") {
+                if noteEvents.isEmpty {
+                    Text("No notes for this game")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(noteEvents) { event in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                if let player = event.primaryPlayer {
+                                    Text("#\(player.number) \(player.name)")
+                                        .font(.headline)
+                                } else {
+                                    Text("General Note")
+                                        .font(.headline)
+                                }
+
+                                Spacer()
+
+                                Text(periodLabel(for: event.periodNumber))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Text(event.timestamp.formatted(date: .omitted, time: .standard))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            if let note = event.noteText, !note.isEmpty {
+                                Text(note)
+                                    .font(.body)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            }
         }
-        .navigationTitle("Game Stats")
+        .navigationTitle("Game Summary")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                   Button("Save HTML Report") {
+                    Button("Save HTML Report") {
                         if let url = HTMLExport.makeGameReportHTML(for: game),
                            let html = try? String(contentsOf: url, encoding: .utf8) {
                             htmlDocument = ExportTextDocument(text: html)
@@ -226,19 +418,6 @@ struct GameStatsView: View {
                 } label: {
                     Image(systemName: "square.and.arrow.up")
                 }
-            }
-        }
-        .fileExporter(
-            isPresented: $showingCSVExporter,
-            document: csvDocument,
-            contentType: .commaSeparatedText,
-            defaultFilename: gameReportFilename
-        ) { result in
-            switch result {
-            case .success(let url):
-                print("Saved CSV to: \(url)")
-            case .failure(let error):
-                print("CSV export failed: \(error.localizedDescription)")
             }
         }
         .fileExporter(
@@ -256,11 +435,11 @@ struct GameStatsView: View {
         }
     }
 
-    private var gameReportFilename: String {
-        let teamName = sanitizedFilenamePart(game.team?.name ?? "Team")
-        let opponentName = sanitizedFilenamePart(game.opponent)
-        let dateText = game.date.formatted(.iso8601.year().month().day())
-        return "\(teamName)_vs_\(opponentName)_\(dateText)"
+    private var statusText: String {
+        if game.isGameEnded { return "Final" }
+        if game.isShootout { return "Shootout" }
+        if game.isGameStarted { return "In Progress" }
+        return "Not Started"
     }
 
     private func sanitizedFilenamePart(_ text: String) -> String {
@@ -269,6 +448,43 @@ struct GameStatsView: View {
         return cleaned
             .replacingOccurrences(of: " ", with: "_")
             .replacingOccurrences(of: "&", with: "and")
+    }
+
+    private func summaryRow(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Text(value)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func assistText(assist1: Player?, assist2: Player?) -> String {
+        var assists: [String] = []
+
+        if let assist1 {
+            assists.append("#\(assist1.number) \(assist1.name)")
+        }
+
+        if let assist2 {
+            assists.append("#\(assist2.number) \(assist2.name)")
+        }
+
+        if assists.isEmpty {
+            return ""
+        }
+
+        return "Assists: " + assists.joined(separator: ", ")
+    }
+
+    private func periodLabel(for period: Int?) -> String {
+        guard let period else { return "" }
+        switch period {
+        case 1: return "P1"
+        case 2: return "P2"
+        case 3: return "P3"
+        default: return "OT\(period - 3)"
+        }
     }
 
     private func activeGoalie(at timestamp: Date) -> Player? {
