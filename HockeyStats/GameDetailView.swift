@@ -64,16 +64,12 @@ struct GameDetailView: View {
                         Spacer()
                         Text("SH Goals Against: \(shortHandedGoalsAgainst)")
                     }
-
-                    HStack {
-                        Text("+: \(plusCount)")
-                        Spacer()
-                        Text("-: \(minusCount)")
-                    }
-
-                    HStack {
-                        Text("SO: \(shootoutForGoals)-\(shootoutAgainstGoals)")
-                        Spacer()
+                   
+                    if game.isShootout || shootoutForGoals > 0 || shootoutAgainstGoals > 0 {
+                        HStack {
+                            Text("SO: \(shootoutForGoals)-\(shootoutAgainstGoals)")
+                            Spacer()
+                        }
                     }
                 }
                 .padding(.vertical, 4)
