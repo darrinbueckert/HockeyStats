@@ -4,7 +4,9 @@ import SwiftData
 enum HTMLExport {
     static func makeGameNotesHTML(for game: Game) -> URL? {
         let teamName = game.team?.name ?? "Team"
-        let fileName = "\(safeFileName(teamName))_vs_\(safeFileName(game.opponent))_Notes.html"
+        let matchup = matchupText(for: game)
+        let location = locationText(for: game)
+        let fileName = "\(safeFileName(teamName))_\(safeFileName(matchup))_Notes.html"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
 
         let notes = game.events
@@ -17,7 +19,7 @@ enum HTMLExport {
         <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Game Notes</title>
+        <title>Game Notes - \(htmlEscape(matchup))</title>
         <style>
             body {
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
@@ -76,7 +78,8 @@ enum HTMLExport {
         <h1>Game Notes</h1>
         <div class="meta">
             <div><strong>Team:</strong> \(htmlEscape(teamName))</div>
-            <div><strong>Opponent:</strong> \(htmlEscape(game.opponent))</div>
+            <div><strong>Matchup:</strong> \(htmlEscape(matchup))</div>
+            <div><strong>Location:</strong> \(htmlEscape(location))</div>
             <div><strong>Date:</strong> \(htmlEscape(game.date.formatted(date: .abbreviated, time: .shortened)))</div>
             <div><strong>Generated:</strong> \(htmlEscape(Date().formatted(date: .abbreviated, time: .shortened)))</div>
         </div>
@@ -120,7 +123,9 @@ enum HTMLExport {
     
     static func makeGameReportHTML(for game: Game) -> URL? {
         let teamName = game.team?.name ?? "Team"
-        let fileName = "\(safeFileName(teamName))_vs_\(safeFileName(game.opponent))_Game_Report.html"
+        let matchup = matchupText(for: game)
+        let location = locationText(for: game)
+        let fileName = "\(safeFileName(teamName))_\(safeFileName(matchup))_Game_Report.html"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
 
         let goalsFor = game.events.filter { $0.type == .goalFor }.count
@@ -185,7 +190,7 @@ enum HTMLExport {
         <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Game Report</title>
+        <title>Game Report - \(htmlEscape(matchup))</title>
         <style>
             body {
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
@@ -245,7 +250,8 @@ enum HTMLExport {
         <h1>Game Report</h1>
         <div class="meta">
             <div><strong>Team:</strong> \(htmlEscape(teamName))</div>
-            <div><strong>Opponent:</strong> \(htmlEscape(game.opponent))</div>
+            <div><strong>Matchup:</strong> \(htmlEscape(matchup))</div>
+            <div><strong>Location:</strong> \(htmlEscape(location))</div>
             <div><strong>Date:</strong> \(htmlEscape(game.date.formatted(date: .abbreviated, time: .shortened)))</div>
             <div><strong>Generated:</strong> \(htmlEscape(Date().formatted(date: .abbreviated, time: .shortened)))</div>
         </div>
@@ -662,7 +668,18 @@ enum HTMLExport {
     }
 
     private static func safeFileName(_ value: String) -> String {
-        value.replacingOccurrences(of: "/", with: "-")
+        value
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: "\\", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+    }
+
+    private static func matchupText(for game: Game) -> String {
+        game.isHomeGame ? "vs \(game.opponent)" : "@ \(game.opponent)"
+    }
+
+    private static func locationText(for game: Game) -> String {
+        game.isHomeGame ? "Home" : "Away"
     }
 
     private static func periodLabel(for period: Int?, isShootoutEvent: Bool = false) -> String {

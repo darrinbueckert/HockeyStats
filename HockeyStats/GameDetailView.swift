@@ -164,30 +164,23 @@ struct GameDetailView: View {
                     .disabled(!canRecordRegularEvents)
 
                     Button {
-                        showingNote = true
+                        showingPenalty = true
                     } label: {
-                        Text("Add Note")
+                        Text("Add Penalty")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
-                    .disabled(!canAddNotes)
+                    .disabled(!canRecordRegularEvents)
                 }
 
                 Button {
-                    showingPenalty = true
+                    showingNote = true
                 } label: {
-                    Text("Add Penalty")
+                    Text("Add Note")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                .disabled(!canRecordRegularEvents)
-
-                Button(role: .destructive) {
-                    undoLastEvent()
-                } label: {
-                    Text("Undo Last Event")
-                }
-                .disabled(sortedEvents.isEmpty)
+                .disabled(!canAddNotes)
             }
 
             Section("Shootout") {
