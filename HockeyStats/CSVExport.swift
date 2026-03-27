@@ -400,6 +400,10 @@ enum CSVExport {
         case .shootoutAttemptAgainst:
             return "Opponent Shootout Attempt"
         case .goalieChange:
+            if event.primaryPlayer == nil {
+                return "Goalie Pulled"
+            }
+
             let hasEarlierGoalieEvent = event.game?.events.contains {
                 $0.type == .goalieChange && $0.timestamp < event.timestamp
             } ?? false
@@ -492,7 +496,7 @@ enum CSVExport {
             if let goalie = event.primaryPlayer {
                 return "#\(goalie.number) \(goalie.name)"
             }
-            return event.noteText ?? ""
+            return ""
         }
     }
 

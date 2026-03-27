@@ -100,6 +100,11 @@ struct AddGoalEventView: View {
             }
     }
 
+    private var isSuddenDeathOvertime: Bool {
+        guard let period = game.currentPeriodNumber else { return false }
+        return period > 3 && !game.isShootout
+    }
+
     private func toggleOnIceSelection(for player: Player) {
         let id = player.persistentModelID
         if selectedOnIcePlayerIDs.contains(id) {
@@ -159,7 +164,6 @@ struct AddGoalEventView: View {
             selectedOnIcePlayerIDs.contains(player.persistentModelID)
         }
 
-        // Ensure scorer always gets a +
         if !selectedOnIcePlayers.contains(where: { $0.persistentModelID == scorer.persistentModelID }) {
             selectedOnIcePlayers.append(scorer)
         }
@@ -177,6 +181,20 @@ struct AddGoalEventView: View {
             game.events.append(plusEvent)
         }
 
+        if isSuddenDeathOvertime {
+            finishGameImmediately()
+        }
+
         dismiss()
+    }
+
+    private func finishGameImmediately() {
+        game.teamScore = game.events.filter { $0.type == .goalFor }.count
+        game.opponentScore = game.events.filter { $0.type == .goalAgainst }.count
+        game.isGameEnded = true
+
+        let endEvent = GameEvent(type: .gameEnd, game: game)
+        context.insert(endEvent)
+        game.events.append(endEvent)
     }
 }

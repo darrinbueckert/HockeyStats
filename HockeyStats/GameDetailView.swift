@@ -15,12 +15,11 @@ struct GameDetailView: View {
     @State private var showingShootoutFor = false
     @State private var showingShootoutAgainst = false
 
-    @State private var selectedGoalieID: PersistentIdentifier?
-    @State private var pendingGoalieID: PersistentIdentifier?
-    @State private var shotsAgainstText = ""
-
     @State private var showingStartGoaliePrompt = false
     @State private var showingChangeGoaliePrompt = false
+    @State private var showingEndOfRegulationPrompt = false
+
+    @State private var shotsAgainstText = ""
 
     @FocusState private var shotsFieldFocused: Bool
 
@@ -91,11 +90,6 @@ struct GameDetailView: View {
                 }
                 .disabled(!game.isGameStarted || game.isGameEnded || game.isShootout)
 
-                Button("Start Shootout") {
-                    startShootout()
-                }
-                .disabled(!game.isGameStarted || game.isGameEnded || game.isShootout)
-
                 Button("End Game") {
                     endGame()
                 }
@@ -105,12 +99,18 @@ struct GameDetailView: View {
                     showingChangeGoaliePrompt = true
                 }
                 .disabled(!game.isGameStarted || game.isGameEnded || goaliePlayers.isEmpty)
+
+                Button("Pull Goalie") {
+                    pullGoalie()
+                }
+                .disabled(!game.isGameStarted || game.isGameEnded || game.goalie == nil)
             }
 
             Section("Quick Actions") {
                 Button("Add Goal") {
                     showingGoalFor = true
                 }
+                .buttonStyle(.borderedProminent)
                 .disabled(!canRecordRegularEvents)
 
                 HStack(spacing: 12) {
@@ -143,28 +143,54 @@ struct GameDetailView: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(!canRecordRegularEvents)
 
-                    Button("Add Opponent Goal") {
+                    Button {
                         showingGoalAgainst = true
+                    } label: {
+                        Text("Opponent Goal")
+                            .frame(maxWidth: .infinity)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .buttonStyle(.borderedProminent)
                     .disabled(!canRecordRegularEvents)
                 }
 
-                Button("Add Penalty") {
+                HStack(spacing: 12) {
+                    Button {
+                        showingPlusMinus = true
+                    } label: {
+                        Text("Add Plus / Minus")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!canRecordRegularEvents)
+
+                    Button {
+                        showingNote = true
+                    } label: {
+                        Text("Add Note")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!canAddNotes)
+                }
+
+                Button {
                     showingPenalty = true
+                } label: {
+                    Text("Add Penalty")
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.bordered)
                 .disabled(!canRecordRegularEvents)
 
-                Button("Add Plus / Minus") {
-                    showingPlusMinus = true
+                Button(role: .destructive) {
+                    undoLastEvent()
+                } label: {
+                    Text("Undo Last Event")
                 }
-                .disabled(!canRecordRegularEvents)
+                .disabled(sortedEvents.isEmpty)
+            }
 
-                Button("Add Note") {
-                    showingNote = true
-                }
-                .disabled(!game.isGameStarted || game.isGameEnded)
-
+            Section("Shootout") {
                 Button("Shootout Attempt") {
                     showingShootoutFor = true
                 }
@@ -174,13 +200,6 @@ struct GameDetailView: View {
                     showingShootoutAgainst = true
                 }
                 .disabled(!game.isShootout || game.isGameEnded)
-
-                Button(role: .destructive) {
-                    undoLastEvent()
-                } label: {
-                    Text("Undo Last Event")
-                }
-                .disabled(sortedEvents.isEmpty)
             }
 
             Section("Event Log") {
@@ -222,7 +241,7 @@ struct GameDetailView: View {
                             Text("#\(goalie.number) \(goalie.name)")
                                 .foregroundStyle(.secondary)
                         } else {
-                            Text("None selected")
+                            Text("Pulled / None")
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -326,21 +345,17 @@ struct GameDetailView: View {
         ) {
             ForEach(goaliePlayers) { player in
                 Button("#\(player.number) \(player.name)") {
-                    pendingGoalieID = player.persistentModelID
                     applyGoalieChange(to: player.persistentModelID, logEvent: true)
                     startGame()
                 }
             }
 
             Button("Start Without Goalie", role: .destructive) {
-                pendingGoalieID = nil
                 applyGoalieChange(to: nil, logEvent: false)
                 startGame()
             }
 
-            Button("Cancel", role: .cancel) {
-                pendingGoalieID = nil
-            }
+            Button("Cancel", role: .cancel) { }
         } message: {
             Text("Choose the goalie starting this game.")
         }
@@ -351,24 +366,36 @@ struct GameDetailView: View {
         ) {
             ForEach(goaliePlayers) { player in
                 Button("#\(player.number) \(player.name)") {
-                    pendingGoalieID = player.persistentModelID
                     applyGoalieChange(to: player.persistentModelID, logEvent: true)
                 }
             }
 
             Button("No Goalie", role: .destructive) {
-                pendingGoalieID = nil
                 applyGoalieChange(to: nil, logEvent: true)
             }
 
-            Button("Cancel", role: .cancel) {
-                pendingGoalieID = nil
-            }
+            Button("Cancel", role: .cancel) { }
         } message: {
             Text("Changing goalies will affect goalie stats for the rest of the game.")
         }
+        .confirmationDialog(
+            endOfTiedPeriodTitle,
+            isPresented: $showingEndOfRegulationPrompt,
+            titleVisibility: .visible
+        ) {
+            Button("Start Overtime") {
+                startOvertime()
+            }
+
+            Button("Start Shootout") {
+                startShootout()
+            }
+
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text(endOfTiedPeriodMessage)
+        }
         .onAppear {
-            selectedGoalieID = game.goalie?.persistentModelID
             shotsAgainstText = game.shotsAgainst == 0 ? "" : "\(game.shotsAgainst)"
         }
     }
@@ -382,7 +409,6 @@ struct GameDetailView: View {
         }
 
         game.goalie = newGoalie
-        selectedGoalieID = newID
 
         if logEvent, game.isGameStarted {
             let event = GameEvent(
@@ -395,6 +421,10 @@ struct GameDetailView: View {
             context.insert(event)
             game.events.append(event)
         }
+    }
+
+    private func pullGoalie() {
+        applyGoalieChange(to: nil, logEvent: true)
     }
 
     private var goaliePlayers: [Player] {
@@ -412,6 +442,14 @@ struct GameDetailView: View {
         game.isGameStarted && !game.isGameEnded && !game.isShootout
     }
 
+    private var canAddNotes: Bool {
+        game.isGameStarted
+    }
+
+    private var isTied: Bool {
+        goalsFor == goalsAgainst
+    }
+
     private var statusLabel: String {
         if game.isGameEnded { return "Final" }
         if game.isShootout { return "Shootout" }
@@ -424,6 +462,7 @@ struct GameDetailView: View {
         return displayLabel(for: period)
     }
 
+    
     private func displayLabel(for period: Int) -> String {
         switch period {
         case 1: return "P1"
@@ -502,6 +541,28 @@ struct GameDetailView: View {
         return String(format: "%.3f", value)
     }
 
+    private var endOfTiedPeriodTitle: String {
+        let current = game.currentPeriodNumber ?? 3
+
+        switch current {
+        case 1, 2, 3:
+            return "End of Regulation"
+        default:
+            return "End of OT\(current - 3)"
+        }
+    }
+    
+    private var endOfTiedPeriodMessage: String {
+        let current = game.currentPeriodNumber ?? 3
+
+        switch current {
+        case 1, 2, 3:
+            return "The game is tied after regulation. Choose overtime or shootout."
+        default:
+            return "The game is still tied after OT\(current - 3). Choose another overtime or shootout."
+        }
+    }
+    
     private func eventTitle(_ event: GameEvent) -> String {
         switch event.type {
         case .goalFor:
@@ -529,6 +590,10 @@ struct GameDetailView: View {
         case .shootoutAttemptAgainst:
             return "Opponent Shootout Attempt"
         case .goalieChange:
+            if event.primaryPlayer == nil {
+                return "Goalie Pulled"
+            }
+
             let hasEarlierGoalieEvent = game.events.contains {
                 $0.type == .goalieChange && $0.timestamp < event.timestamp
             }
@@ -628,7 +693,7 @@ struct GameDetailView: View {
                 if let goalie = event.primaryPlayer {
                     return "#\(goalie.number) \(goalie.name)"
                 }
-                return event.noteText
+                return nil
             }
         }()
 
@@ -716,10 +781,37 @@ struct GameDetailView: View {
     private func nextPeriod() {
         guard game.isGameStarted, !game.isGameEnded, !game.isShootout else { return }
 
-        if let current = game.currentPeriodNumber {
+        let current = game.currentPeriodNumber ?? 1
+
+        if current < 3 {
             game.currentPeriodNumber = current + 1
+            return
+        }
+
+        if current == 3 {
+            if isTied {
+                showingEndOfRegulationPrompt = true
+            } else {
+                endGame()
+            }
+            return
+        }
+
+        // Overtime or later
+        if isTied {
+            showingEndOfRegulationPrompt = true
         } else {
-            game.currentPeriodNumber = 1
+            endGame()
+        }
+    }
+    private func startOvertime() {
+        game.isShootout = false
+
+        let current = game.currentPeriodNumber ?? 3
+        if current < 4 {
+            game.currentPeriodNumber = 4
+        } else {
+            game.currentPeriodNumber = current + 1
         }
     }
 
