@@ -26,18 +26,35 @@ struct GameDetailView: View {
     var body: some View {
         List {
             Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(game.team?.name ?? "Team")
-                        .font(.headline)
-                    Text("vs \(game.opponent)")
-                        .font(.title3)
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 10) {
+                        if let data = game.team?.logoData,
+                           let uiImage = UIImage(data: data) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 30, height: 30)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                        }
+
+                        Text(matchupText)
+                            .font(.headline)
+
+                        Spacer()
+                    }
 
                     HStack {
-                        Text("Status: \(statusLabel)")
-                            .bold()
+                        Text(statusLabel)
+                            .font(.title3)
+                            .fontWeight(.semibold)
+
                         Spacer()
+
                         if let period = currentPeriodLabel {
                             Text(period)
+                                .font(.title3)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.secondary)
                         }
                     }
 
@@ -64,7 +81,7 @@ struct GameDetailView: View {
                         Spacer()
                         Text("SH Goals Against: \(shortHandedGoalsAgainst)")
                     }
-                   
+
                     if game.isShootout || shootoutForGoals > 0 || shootoutAgainstGoals > 0 {
                         HStack {
                             Text("SO: \(shootoutForGoals)-\(shootoutAgainstGoals)")
@@ -389,6 +406,12 @@ struct GameDetailView: View {
         }
     }
 
+    private var matchupText: String {
+        let teamName = game.team?.name ?? "Team"
+        let separator = game.isHomeGame ? "vs" : "@"
+        return "\(teamName) \(separator) \(game.opponent)"
+    }
+
     private func applyGoalieChange(to newID: PersistentIdentifier?, logEvent: Bool) {
         let newGoalie = goaliePlayers.first(where: { $0.persistentModelID == newID })
         let oldGoalieID = game.goalie?.persistentModelID
@@ -451,7 +474,6 @@ struct GameDetailView: View {
         return displayLabel(for: period)
     }
 
-    
     private func displayLabel(for period: Int) -> String {
         switch period {
         case 1: return "P1"
@@ -504,14 +526,6 @@ struct GameDetailView: View {
         game.events.filter { $0.type == .goalAgainst && $0.strength == .shortHanded }.count
     }
 
-    private var plusCount: Int {
-        game.events.filter { $0.type == .plus }.count
-    }
-
-    private var minusCount: Int {
-        game.events.filter { $0.type == .minus }.count
-    }
-
     private var shootoutForGoals: Int {
         game.events.filter { $0.type == .shootoutAttemptFor && $0.didScore == true }.count
     }
@@ -540,7 +554,7 @@ struct GameDetailView: View {
             return "End of OT\(current - 3)"
         }
     }
-    
+
     private var endOfTiedPeriodMessage: String {
         let current = game.currentPeriodNumber ?? 3
 
@@ -551,7 +565,7 @@ struct GameDetailView: View {
             return "The game is still tied after OT\(current - 3). Choose another overtime or shootout."
         }
     }
-    
+
     private func eventTitle(_ event: GameEvent) -> String {
         switch event.type {
         case .goalFor:
@@ -786,13 +800,13 @@ struct GameDetailView: View {
             return
         }
 
-        // Overtime or later
         if isTied {
             showingEndOfRegulationPrompt = true
         } else {
             endGame()
         }
     }
+
     private func startOvertime() {
         game.isShootout = false
 
